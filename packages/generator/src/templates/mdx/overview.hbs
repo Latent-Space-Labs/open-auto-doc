@@ -1,0 +1,61 @@
+---
+title: "{{repoName}} Overview"
+description: "Architecture overview and documentation for {{repoName}}"
+---
+
+# {{repoName}}
+
+{{{architecture.summary}}}
+
+## Tech Stack
+
+{{#each architecture.techStack}}
+- {{this}}
+{{/each}}
+
+## Architecture
+
+### Data Flow
+
+{{{architecture.dataFlow}}}
+
+### Key Patterns
+
+{{#each architecture.keyPatterns}}
+- {{this}}
+{{/each}}
+
+### Entry Points
+
+{{#each architecture.entryPoints}}
+- `{{this}}`
+{{/each}}
+
+## Modules
+
+{{#each architecture.modules}}
+### {{this.name}}
+
+{{this.description}}
+
+**Key Files:**
+{{#each this.files}}
+- `{{this}}`
+{{/each}}
+
+**Responsibilities:**
+{{#each this.responsibilities}}
+- {{this}}
+{{/each}}
+
+{{/each}}
+
+## Project Stats
+
+| Metric | Value |
+|--------|-------|
+| Total Files | {{staticAnalysis.totalFiles}} |
+| Languages | {{join staticAnalysis.languages ", "}} |
+| API Endpoints | {{apiEndpointCount}} |
+| Components | {{componentCount}} |
+| Data Models | {{dataModelCount}} |

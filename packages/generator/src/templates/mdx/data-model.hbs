@@ -1,0 +1,33 @@
+---
+title: "Data Models"
+description: "Data models for {{repoName}}"
+---
+
+# Data Models
+
+{{#each models}}
+## {{this.name}}
+
+{{this.description}}
+
+**File:** `{{this.filePath}}`
+
+### Fields
+
+| Field | Type | Description | Constraints |
+|-------|------|-------------|-------------|
+{{#each this.fields}}
+| `{{this.name}}` | `{{this.type}}` | {{this.description}} | {{#if this.constraints}}{{join this.constraints ", "}}{{else}}-{{/if}} |
+{{/each}}
+
+{{#if this.relationships.length}}
+### Relationships
+
+{{#each this.relationships}}
+- {{this}}
+{{/each}}
+{{/if}}
+
+---
+
+{{/each}}

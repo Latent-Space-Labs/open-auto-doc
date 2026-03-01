@@ -1,0 +1,41 @@
+---
+title: "API Reference"
+description: "API endpoints for {{repoName}}"
+---
+
+# API Reference
+
+{{#each endpoints}}
+## {{this.method}} `{{this.path}}`
+
+{{this.description}}
+
+{{#if this.authentication}}
+> **Authentication:** {{this.authentication}}
+{{/if}}
+
+{{#if this.parameters.length}}
+### Parameters
+
+| Name | Type | Required | Location | Description |
+|------|------|----------|----------|-------------|
+{{#each this.parameters}}
+| `{{this.name}}` | `{{this.type}}` | {{#if this.required}}Yes{{else}}No{{/if}} | {{this.location}} | {{this.description}} |
+{{/each}}
+{{/if}}
+
+{{#if this.requestBody}}
+### Request Body
+
+{{{this.requestBody}}}
+{{/if}}
+
+{{#if this.responseBody}}
+### Response
+
+{{{this.responseBody}}}
+{{/if}}
+
+---
+
+{{/each}}

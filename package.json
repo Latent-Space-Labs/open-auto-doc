@@ -1,0 +1,15 @@
+{
+  "name": "open-auto-doc-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/analyzer -w packages/generator -w packages/cli",
+    "dev": "npm run dev --workspaces --if-present",
+    "clean": "rm -rf packages/*/dist"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

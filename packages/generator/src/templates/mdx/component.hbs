@@ -1,0 +1,38 @@
+---
+title: "Components"
+description: "UI components for {{repoName}}"
+---
+
+# Components
+
+{{#each components}}
+## {{this.name}}
+
+{{this.description}}
+
+**File:** `{{this.filePath}}`
+{{#if this.category}}
+**Category:** {{this.category}}
+{{/if}}
+
+{{#if this.props.length}}
+### Props
+
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+{{#each this.props}}
+| `{{this.name}}` | `{{this.type}}` | {{#if this.required}}Yes{{else}}No{{/if}} | {{#if this.defaultValue}}`{{this.defaultValue}}`{{else}}-{{/if}} | {{this.description}} |
+{{/each}}
+{{/if}}
+
+{{#if this.usage}}
+### Usage
+
+```tsx
+{{{this.usage}}}
+```
+{{/if}}
+
+---
+
+{{/each}}

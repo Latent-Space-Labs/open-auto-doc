@@ -1,0 +1,33 @@
+{
+  "name": "@open-auto-doc/generator",
+  "version": "0.1.0",
+  "description": "MDX content and site scaffolding for open-auto-doc",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8",
+    "fs-extra": "^11.3.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.12.0",
+    "@types/fs-extra": "^11.0.4"
+  },
+  "license": "MIT"
+}
