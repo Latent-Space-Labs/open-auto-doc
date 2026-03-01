@@ -14,9 +14,9 @@ export async function writeMeta(
   if (results.length === 1) {
     await writeRepoMeta(contentDir, results[0]);
   } else {
-    // Root meta listing all repos
+    // Root meta listing index + all repos
     const rootMeta: MetaJson = {
-      pages: results.map((r) => slugify(r.repoName)),
+      pages: ["index", ...results.map((r) => slugify(r.repoName))],
     };
     await fs.writeFile(
       path.join(contentDir, "meta.json"),

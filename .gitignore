@@ -9,3 +9,4 @@ out/
 coverage/
 .autodocrc.json
 .source/
+docs-site/
