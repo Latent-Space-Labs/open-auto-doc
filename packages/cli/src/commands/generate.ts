@@ -59,35 +59,57 @@ export async function generateCommand(options: GenerateOptions) {
   const incremental = options.incremental && !options.force;
   const cacheDir = path.join(config.outputDir, ".autodoc-cache");
 
-  const results: AnalysisResult[] = [];
+  // Phase 1: Clone all repos
+  const cloneSpinner = p.spinner();
+  cloneSpinner.start(`Cloning ${config.repos.length} repositories...`);
   const clones: ClonedRepo[] = [];
 
   for (const repo of config.repos) {
-    const spinner = p.spinner();
-    spinner.start(`Cloning ${repo.name}...`);
+    cloneSpinner.message(`Cloning ${repo.name}...`);
+    try {
+      const cloned = cloneRepo(
+        {
+          ...repo,
+          description: null,
+          defaultBranch: "main",
+          language: null,
+          private: false,
+        },
+        token,
+        { shallow: !incremental },
+      );
+      clones.push(cloned);
+    } catch (err) {
+      p.log.warn(`Failed to clone ${repo.name}: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+  cloneSpinner.stop(`Cloned ${clones.length}/${config.repos.length} repositories`);
 
-    const cloned = cloneRepo(
-      {
-        ...repo,
-        description: null,
-        defaultBranch: "main",
-        language: null,
-        private: false,
-      },
-      token,
-      { shallow: !incremental },
-    );
-    clones.push(cloned);
-    spinner.stop(`Cloned ${repo.name}`);
+  if (clones.length === 0) {
+    p.log.error("No repositories were cloned.");
+    process.exit(1);
+  }
 
-    spinner.start(`Analyzing ${repo.name}...`);
+  // Phase 2: Analyze all repos in parallel
+  const analyzeSpinner = p.spinner();
+  let completed = 0;
+  const total = clones.length;
+
+  const updateSpinner = () => {
+    analyzeSpinner.message(`Analyzing repos in parallel (${completed}/${total} complete)...`);
+  };
+
+  analyzeSpinner.start(`Analyzing ${total} ${total === 1 ? "repo" : "repos"} in parallel...`);
+
+  const analysisPromises = clones.map(async (cloned) => {
+    const repo = config.repos.find((r) => r.name === cloned.info.name)!;
+
     try {
       let result: AnalysisResult;
 
       if (incremental) {
         const cached = loadCache(cacheDir, repo.name);
         if (cached) {
-          spinner.message(`Incremental analysis (cached from ${cached.commitSha.slice(0, 7)})...`);
           result = await analyzeRepositoryIncremental({
             repoPath: cloned.localPath,
             repoName: repo.name,
@@ -95,26 +117,13 @@ export async function generateCommand(options: GenerateOptions) {
             apiKey,
             previousResult: cached.result,
             previousCommitSha: cached.commitSha,
-            onProgress: (_stage, message) => {
-              spinner.message(message);
-            },
-            onAgentMessage: (text) => {
-              spinner.message(text);
-            },
           });
         } else {
-          spinner.message("No cache found, running full analysis...");
           result = await analyzeRepository({
             repoPath: cloned.localPath,
             repoName: repo.name,
             repoUrl: repo.htmlUrl,
             apiKey,
-            onProgress: (_stage, message) => {
-              spinner.message(message);
-            },
-            onAgentMessage: (text) => {
-              spinner.message(text);
-            },
           });
         }
       } else {
@@ -123,16 +132,10 @@ export async function generateCommand(options: GenerateOptions) {
           repoName: repo.name,
           repoUrl: repo.htmlUrl,
           apiKey,
-          onProgress: (_stage, message) => {
-            spinner.message(message);
-          },
-          onAgentMessage: (text) => {
-            spinner.message(text);
-          },
         });
       }
 
-      // Save cache for future incremental runs
+      // Save cache
       try {
         const headSha = getHeadSha(cloned.localPath);
         saveCache(cacheDir, repo.name, headSha, result);
@@ -140,15 +143,26 @@ export async function generateCommand(options: GenerateOptions) {
         // Cache save failure is non-fatal
       }
 
-      results.push(result);
-      spinner.stop(`Analyzed ${repo.name}`);
+      completed++;
+      updateSpinner();
+      return { repo: repo.name, result };
     } catch (err) {
-      spinner.stop(`Failed: ${err}`);
+      completed++;
+      updateSpinner();
+      p.log.warn(`[${repo.name}] Analysis failed: ${err instanceof Error ? err.message : err}`);
+      return { repo: repo.name, result: null };
     }
-  }
+  });
+
+  const settled = await Promise.all(analysisPromises);
+  const results: AnalysisResult[] = settled
+    .filter((s) => s.result !== null)
+    .map((s) => s.result!);
+
+  analyzeSpinner.stop(`Analyzed ${results.length}/${total} repositories`);
 
   if (results.length > 0) {
-    // Cross-repo analysis (multi-repo only)
+    // Phase 3: Cross-repo analysis (multi-repo only)
     let crossRepo: CrossRepoAnalysis | undefined;
     if (results.length > 1) {
       const crossSpinner = p.spinner();
@@ -162,6 +176,7 @@ export async function generateCommand(options: GenerateOptions) {
       }
     }
 
+    // Phase 4: Generate docs
     const contentDir = path.join(config.outputDir, "content", "docs");
     await writeContent(contentDir, results, crossRepo);
     await writeMeta(contentDir, results, crossRepo);

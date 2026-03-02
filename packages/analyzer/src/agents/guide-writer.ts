@@ -4,7 +4,7 @@ import type {
   GettingStartedGuide,
   StaticAnalysis,
 } from "../types.js";
-import { runAgent } from "../agent-sdk.js";
+import { runAgent, EFFICIENCY_HINTS } from "../agent-sdk.js";
 
 const guideOutputSchema = {
   type: "object",
@@ -59,7 +59,8 @@ Produce a getting-started guide with:
 - installation: step-by-step installation instructions in markdown
 - quickStart: how to get the project running in markdown
 - configuration: configuration options and environment variables in markdown
-- examples: common usage examples in markdown`,
+- examples: common usage examples in markdown
+${EFFICIENCY_HINTS}`,
     cwd: repoPath,
     apiKey,
     model,

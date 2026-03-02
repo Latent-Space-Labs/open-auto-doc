@@ -8,6 +8,7 @@ import { analyzeApiEndpoints } from "./agents/api-doc.js";
 import { analyzeComponents } from "./agents/component-doc.js";
 import { analyzeDataModels } from "./agents/model-doc.js";
 import { writeGettingStarted } from "./agents/guide-writer.js";
+import { initializeRepo } from "./agents/repo-init.js";
 import { computeDiff, classifyChanges, type AffectedSection } from "./diff.js";
 
 export interface IncrementalOptions extends AnalyzerOptions {
@@ -16,7 +17,7 @@ export interface IncrementalOptions extends AnalyzerOptions {
 }
 
 export async function analyzeRepository(options: AnalyzerOptions): Promise<AnalysisResult> {
-  const { repoPath, repoName, repoUrl, apiKey, model, onProgress, onAgentMessage } = options;
+  const { repoPath, repoName, repoUrl, apiKey, model, skipInit, onProgress, onAgentMessage } = options;
 
   // Stage 1: Static parsing + import graph
   onProgress?.("static", "Parsing file tree and dependencies...");
@@ -38,6 +39,16 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
   };
 
   onProgress?.("static", `Found ${totalFiles} files, ${languages.length} languages, ${importGraph.edges.length} import edges`);
+
+  // Repo init: generate CLAUDE.md if missing
+  if (!skipInit) {
+    onProgress?.("init", "Checking for project context...");
+    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+    if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
+      staticAnalysis.claudeMd = updated.claudeMd;
+      onProgress?.("init", "Generated CLAUDE.md for project context");
+    }
+  }
 
   // Stage 2: Architecture pass (Agent SDK)
   onProgress?.("architecture", "Analyzing architecture with AI...");
@@ -109,6 +120,7 @@ export async function analyzeRepositoryIncremental(
     repoUrl,
     apiKey,
     model,
+    skipInit,
     onProgress,
     onAgentMessage,
     previousResult,
@@ -133,6 +145,14 @@ export async function analyzeRepositoryIncremental(
     totalFiles,
     importGraph,
   };
+
+  // Repo init: generate CLAUDE.md if missing
+  if (!skipInit) {
+    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+    if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
+      staticAnalysis.claudeMd = updated.claudeMd;
+    }
+  }
 
   // Compute diff and classify
   onProgress?.("incremental", "Computing changes since last analysis...");

@@ -1,5 +1,5 @@
 import type { ArchitectureOverview, MermaidDiagram, ModuleInfo, StaticAnalysis } from "../types.js";
-import { runAgent } from "../agent-sdk.js";
+import { runAgent, EFFICIENCY_HINTS } from "../agent-sdk.js";
 
 const architectureSchema = {
   type: "object",
@@ -86,7 +86,8 @@ Also generate Mermaid diagrams:
 2. A data flow diagram using \`flowchart LR\` showing how data moves through the system
 
 Return the diagrams in the "diagrams" array with id, title, description, and mermaidSyntax fields.
-Each mermaidSyntax value should be valid Mermaid syntax that can be rendered directly.`,
+Each mermaidSyntax value should be valid Mermaid syntax that can be rendered directly.
+${EFFICIENCY_HINTS}`,
     cwd: repoPath,
     apiKey,
     model,

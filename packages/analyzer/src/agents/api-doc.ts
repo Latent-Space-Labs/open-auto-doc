@@ -1,5 +1,5 @@
 import type { ApiEndpoint, ArchitectureOverview, MermaidDiagram, StaticAnalysis } from "../types.js";
-import { runAgent } from "../agent-sdk.js";
+import { runAgent, EFFICIENCY_HINTS } from "../agent-sdk.js";
 
 interface ApiAnalysisResult {
   endpoints: ApiEndpoint[];
@@ -81,7 +81,8 @@ Use Read to examine each file and extract endpoint details.
 For each endpoint, document: method, path, description, parameters, requestBody, responseBody, authentication.
 
 Also generate a Mermaid \`sequenceDiagram\` showing the main API request flow (e.g. Client -> API -> Service -> Database).
-If no endpoints are found, set the diagram to null and return an empty endpoints array.`,
+If no endpoints are found, set the diagram to null and return an empty endpoints array.
+${EFFICIENCY_HINTS}`,
     cwd: repoPath,
     apiKey,
     model,

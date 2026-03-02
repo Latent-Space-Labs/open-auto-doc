@@ -1,5 +1,5 @@
 import type { ArchitectureOverview, DataModelDoc, MermaidDiagram, StaticAnalysis } from "../types.js";
-import { runAgent } from "../agent-sdk.js";
+import { runAgent, EFFICIENCY_HINTS } from "../agent-sdk.js";
 
 interface ModelAnalysisResult {
   models: DataModelDoc[];
@@ -78,7 +78,8 @@ Use Read to examine each file and extract model details.
 For each model, document: name, description, filePath, fields (name, type, description, constraints), relationships.
 
 Also generate a Mermaid \`erDiagram\` showing entity relationships between the main data models.
-If no models are found, set the diagram to null and return an empty models array.`,
+If no models are found, set the diagram to null and return an empty models array.
+${EFFICIENCY_HINTS}`,
     cwd: repoPath,
     apiKey,
     model,

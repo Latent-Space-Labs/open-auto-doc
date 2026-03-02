@@ -171,6 +171,7 @@ export interface AnalyzerOptions {
   repoUrl: string;
   apiKey: string;
   model?: string;
+  skipInit?: boolean;
   onProgress?: (stage: string, message: string) => void;
   onAgentMessage?: (text: string) => void;
 }

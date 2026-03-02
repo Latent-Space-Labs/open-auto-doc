@@ -1,5 +1,5 @@
 import type { ArchitectureOverview, ComponentDoc, StaticAnalysis } from "../types.js";
-import { runAgent } from "../agent-sdk.js";
+import { runAgent, EFFICIENCY_HINTS } from "../agent-sdk.js";
 
 interface ComponentAnalysisResult {
   components: ComponentDoc[];
@@ -66,7 +66,8 @@ Use Glob to find component files (e.g. **/components/**, **/*.component.*, **/*.
 Use Read to examine each file and extract component details.
 
 For each component, document: name, description, filePath, props (name, type, required, defaultValue, description), usage example code, category.
-If no UI components are found, return an empty components array.`,
+If no UI components are found, return an empty components array.
+${EFFICIENCY_HINTS}`,
     cwd: repoPath,
     apiKey,
     model,

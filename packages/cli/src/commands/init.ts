@@ -63,47 +63,68 @@ export async function initCommand(options: { output?: string }) {
     p.log.success("Using saved Anthropic API key.");
   }
 
-  // Step 4: Clone and analyze repos
-  const results: AnalysisResult[] = [];
+  // Step 4: Clone all repos
+  const cloneSpinner = p.spinner();
+  cloneSpinner.start(`Cloning ${repos.length} repositories...`);
   const clones: ClonedRepo[] = [];
 
   for (const repo of repos) {
-    const spinner = p.spinner();
-
-    spinner.start(`Cloning ${repo.name}...`);
+    cloneSpinner.message(`Cloning ${repo.name}...`);
     try {
       const cloned = cloneRepo(repo, token);
       clones.push(cloned);
-      spinner.stop(`Cloned ${repo.name}`);
     } catch (err) {
-      spinner.stop(`Failed to clone ${repo.name}`);
-      p.log.error(`Clone error: ${err instanceof Error ? err.message : err}`);
-      continue;
+      p.log.warn(`Failed to clone ${repo.name}: ${err instanceof Error ? err.message : err}`);
     }
+  }
+  cloneSpinner.stop(`Cloned ${clones.length}/${repos.length} repositories`);
 
-    const cloned = clones[clones.length - 1];
-    spinner.start(`Analyzing ${repo.name}...`);
+  if (clones.length === 0) {
+    p.log.error("No repositories were cloned.");
+    process.exit(1);
+  }
+
+  // Step 5: Analyze all repos in parallel
+  const analyzeSpinner = p.spinner();
+  let completed = 0;
+  const total = clones.length;
+
+  const updateSpinner = () => {
+    analyzeSpinner.message(`Analyzing repos in parallel (${completed}/${total} complete)...`);
+  };
+
+  analyzeSpinner.start(`Analyzing ${total} ${total === 1 ? "repo" : "repos"} in parallel...`);
+
+  const analysisPromises = clones.map(async (cloned) => {
     try {
       const result = await analyzeRepository({
         repoPath: cloned.localPath,
-        repoName: repo.name,
-        repoUrl: repo.htmlUrl,
+        repoName: cloned.info.name,
+        repoUrl: cloned.info.htmlUrl,
         apiKey,
-        onProgress: (stage, message) => {
-          spinner.stop(`[${repo.name}] ${message}`);
-          spinner.start(`Analyzing ${repo.name} — ${stage}...`);
-        },
-        onAgentMessage: (text) => {
-          spinner.message(text);
-        },
       });
-      results.push(result);
-      spinner.stop(`Analyzed ${repo.name} — ${result.apiEndpoints.length} endpoints, ${result.components.length} components, ${result.dataModels.length} models, ${result.diagrams.length} diagrams`);
+      completed++;
+      updateSpinner();
+      return { repo: cloned.info.name, result };
     } catch (err) {
-      spinner.stop(`Failed to analyze ${repo.name}`);
-      p.log.error(`Analysis error: ${err instanceof Error ? err.message : err}`);
+      completed++;
+      updateSpinner();
+      p.log.warn(`[${cloned.info.name}] Analysis failed: ${err instanceof Error ? err.message : err}`);
+      return { repo: cloned.info.name, result: null };
     }
-  }
+  });
+
+  const settled = await Promise.all(analysisPromises);
+  const results: AnalysisResult[] = settled
+    .filter((s) => s.result !== null)
+    .map((s) => s.result!);
+
+  analyzeSpinner.stop(
+    `Analyzed ${results.length}/${total} repositories` +
+    (results.length > 0
+      ? ` — ${results.reduce((n, r) => n + r.apiEndpoints.length, 0)} endpoints, ${results.reduce((n, r) => n + r.components.length, 0)} components, ${results.reduce((n, r) => n + r.diagrams.length, 0)} diagrams`
+      : ""),
+  );
 
   if (results.length === 0) {
     p.log.error("No repositories were successfully analyzed.");
@@ -111,7 +132,7 @@ export async function initCommand(options: { output?: string }) {
     process.exit(1);
   }
 
-  // Step 4b: Cross-repo analysis (multi-repo only)
+  // Step 6: Cross-repo analysis (multi-repo only)
   let crossRepo: CrossRepoAnalysis | undefined;
   if (results.length > 1) {
     const crossSpinner = p.spinner();
@@ -125,7 +146,7 @@ export async function initCommand(options: { output?: string }) {
     }
   }
 
-  // Step 5: Generate docs site
+  // Step 7: Generate docs site
   const outputDir = path.resolve(options.output || "docs-site");
   const projectName = results.length === 1 ? results[0].repoName : "My Project";
 
