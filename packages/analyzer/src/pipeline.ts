@@ -16,6 +16,9 @@ export interface IncrementalOptions extends AnalyzerOptions {
   previousCommitSha: string;
 }
 
+// Each agent SDK query() adds exit listeners; parallel repos × parallel agents can exceed the default 10
+process.setMaxListeners(Math.max(process.getMaxListeners(), 50));
+
 export async function analyzeRepository(options: AnalyzerOptions): Promise<AnalysisResult> {
   const { repoPath, repoName, repoUrl, apiKey, model, skipInit, onProgress, onAgentMessage } = options;
 

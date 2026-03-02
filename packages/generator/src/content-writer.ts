@@ -3,6 +3,7 @@ import path from "node:path";
 import Handlebars from "handlebars";
 import { fileURLToPath } from "node:url";
 import type { AnalysisResult, CrossRepoAnalysis } from "./types.js";
+import { escapeMdxOutsideCode } from "./mdx-escape.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -10,6 +11,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 Handlebars.registerHelper("join", (arr: string[], sep: string) => {
   if (!Array.isArray(arr)) return "";
   return arr.join(typeof sep === "string" ? sep : ", ");
+});
+
+Handlebars.registerHelper("pipeEscape", (text: string) => {
+  if (typeof text !== "string") return "";
+  return text.replace(/\|/g, "\\|");
 });
 
 let templatesLoaded = false;
@@ -108,7 +114,7 @@ description: Auto-generated documentation for ${results.length} repositories
 ${repoCards}
 `;
 
-  await fs.writeFile(path.join(contentDir, "index.mdx"), mdx);
+  await fs.writeFile(path.join(contentDir, "index.mdx"), escapeMdxOutsideCode(mdx));
 }
 
 async function writeRepoContent(dir: string, result: AnalysisResult): Promise<void> {
@@ -182,7 +188,8 @@ function renderTemplate(name: string, data: object): string {
   }
   try {
     const raw = template(data);
-    return sanitizeCodeBlocks(raw);
+    const sanitized = sanitizeCodeBlocks(raw);
+    return escapeMdxOutsideCode(sanitized);
   } catch (err) {
     throw new Error(
       `Failed to render template "${name}": ${err instanceof Error ? err.message : err}`,

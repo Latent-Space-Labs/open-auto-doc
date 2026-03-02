@@ -50,7 +50,7 @@ Technologies shared across repositories:
 | Consumer | Provider | Method | Endpoint | Description |
 |----------|----------|--------|----------|-------------|
 {{#each apiContracts}}
-| {{this.consumerRepo}} | {{this.providerRepo}} | {{this.method}} | `{{this.endpoint}}` | {{this.description}} |
+| {{this.consumerRepo}} | {{this.providerRepo}} | {{this.method}} | `{{this.endpoint}}` | {{pipeEscape this.description}} |
 {{/each}}
 {{/if}}
 

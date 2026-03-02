@@ -63,7 +63,24 @@ export async function initCommand(options: { output?: string }) {
     p.log.success("Using saved Anthropic API key.");
   }
 
-  // Step 4: Clone all repos
+  // Step 4: Model selection
+  const model = (await p.select({
+    message: "Which model should analyze your repos?",
+    options: [
+      { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", hint: "Fast & capable (recommended)" },
+      { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", hint: "Fastest & cheapest" },
+      { value: "claude-opus-4-6", label: "Claude Opus 4.6", hint: "Most capable, slowest" },
+    ],
+  })) as string;
+
+  if (p.isCancel(model)) {
+    p.cancel("Operation cancelled");
+    process.exit(0);
+  }
+
+  p.log.info(`Using ${model}`);
+
+  // Step 5: Clone all repos
   const cloneSpinner = p.spinner();
   cloneSpinner.start(`Cloning ${repos.length} repositories...`);
   const clones: ClonedRepo[] = [];
@@ -88,29 +105,41 @@ export async function initCommand(options: { output?: string }) {
   const analyzeSpinner = p.spinner();
   let completed = 0;
   const total = clones.length;
+  const repoStages: Record<string, string> = {};
 
   const updateSpinner = () => {
-    analyzeSpinner.message(`Analyzing repos in parallel (${completed}/${total} complete)...`);
+    const lines = Object.entries(repoStages)
+      .map(([name, status]) => `[${name}] ${status}`)
+      .join(" | ");
+    analyzeSpinner.message(`${completed}/${total} done — ${lines}`);
   };
 
   analyzeSpinner.start(`Analyzing ${total} ${total === 1 ? "repo" : "repos"} in parallel...`);
 
   const analysisPromises = clones.map(async (cloned) => {
+    const repoName = cloned.info.name;
     try {
       const result = await analyzeRepository({
         repoPath: cloned.localPath,
-        repoName: cloned.info.name,
+        repoName,
         repoUrl: cloned.info.htmlUrl,
         apiKey,
+        model,
+        onProgress: (stage, msg) => {
+          repoStages[repoName] = `${stage}: ${msg}`;
+          updateSpinner();
+        },
       });
       completed++;
+      delete repoStages[repoName];
       updateSpinner();
-      return { repo: cloned.info.name, result };
+      return { repo: repoName, result };
     } catch (err) {
       completed++;
+      delete repoStages[repoName];
       updateSpinner();
-      p.log.warn(`[${cloned.info.name}] Analysis failed: ${err instanceof Error ? err.message : err}`);
-      return { repo: cloned.info.name, result: null };
+      p.log.warn(`[${repoName}] Analysis failed: ${err instanceof Error ? err.message : err}`);
+      return { repo: repoName, result: null };
     }
   });
 
@@ -138,7 +167,9 @@ export async function initCommand(options: { output?: string }) {
     const crossSpinner = p.spinner();
     crossSpinner.start("Analyzing cross-repository relationships...");
     try {
-      crossRepo = await analyzeCrossRepos(results, apiKey);
+      crossRepo = await analyzeCrossRepos(results, apiKey, model, (text) => {
+        crossSpinner.message(text.slice(0, 80));
+      });
       crossSpinner.stop(`Cross-repo analysis complete — ${crossRepo.repoRelationships.length} relationships found`);
     } catch (err) {
       crossSpinner.stop("Cross-repo analysis failed (non-fatal)");

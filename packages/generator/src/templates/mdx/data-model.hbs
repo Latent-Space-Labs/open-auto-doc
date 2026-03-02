@@ -17,7 +17,7 @@ description: "Data models for {{repoName}}"
 | Field | Type | Description | Constraints |
 |-------|------|-------------|-------------|
 {{#each this.fields}}
-| `{{this.name}}` | `{{this.type}}` | {{this.description}} | {{#if this.constraints}}{{join this.constraints ", "}}{{else}}-{{/if}} |
+| `{{this.name}}` | `{{pipeEscape this.type}}` | {{pipeEscape this.description}} | {{#if this.constraints}}{{join this.constraints ", "}}{{else}}-{{/if}} |
 {{/each}}
 
 {{#if this.relationships.length}}

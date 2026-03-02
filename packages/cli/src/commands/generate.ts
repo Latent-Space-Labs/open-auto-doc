@@ -111,15 +111,27 @@ export async function generateCommand(options: GenerateOptions) {
   const analyzeSpinner = p.spinner();
   let completed = 0;
   const total = clones.length;
+  const repoStages: Record<string, string> = {};
 
   const updateSpinner = () => {
-    analyzeSpinner.message(`Analyzing repos in parallel (${completed}/${total} complete)...`);
+    const lines = Object.entries(repoStages)
+      .map(([name, status]) => `[${name}] ${status}`)
+      .join(" | ");
+    analyzeSpinner.message(`${completed}/${total} done — ${lines}`);
   };
 
   analyzeSpinner.start(`Analyzing ${total} ${total === 1 ? "repo" : "repos"} in parallel...`);
 
   const analysisPromises = clones.map(async (cloned) => {
     const repo = config.repos.find((r) => r.name === cloned.info.name)!;
+    const repoName = repo.name;
+
+    const callbacks = {
+      onProgress: (stage: string, msg: string) => {
+        repoStages[repoName] = `${stage}: ${msg}`;
+        updateSpinner();
+      },
+    };
 
     try {
       let result: AnalysisResult;
@@ -129,29 +141,32 @@ export async function generateCommand(options: GenerateOptions) {
         if (cached) {
           result = await analyzeRepositoryIncremental({
             repoPath: cloned.localPath,
-            repoName: repo.name,
+            repoName,
             repoUrl: repo.htmlUrl,
             apiKey,
             model,
             previousResult: cached.result,
             previousCommitSha: cached.commitSha,
+            ...callbacks,
           });
         } else {
           result = await analyzeRepository({
             repoPath: cloned.localPath,
-            repoName: repo.name,
+            repoName,
             repoUrl: repo.htmlUrl,
             apiKey,
             model,
+            ...callbacks,
           });
         }
       } else {
         result = await analyzeRepository({
           repoPath: cloned.localPath,
-          repoName: repo.name,
+          repoName,
           repoUrl: repo.htmlUrl,
           apiKey,
           model,
+          ...callbacks,
         });
       }
 
@@ -164,13 +179,15 @@ export async function generateCommand(options: GenerateOptions) {
       }
 
       completed++;
+      delete repoStages[repoName];
       updateSpinner();
-      return { repo: repo.name, result };
+      return { repo: repoName, result };
     } catch (err) {
       completed++;
+      delete repoStages[repoName];
       updateSpinner();
-      p.log.warn(`[${repo.name}] Analysis failed: ${err instanceof Error ? err.message : err}`);
-      return { repo: repo.name, result: null };
+      p.log.warn(`[${repoName}] Analysis failed: ${err instanceof Error ? err.message : err}`);
+      return { repo: repoName, result: null };
     }
   });
 
@@ -188,7 +205,9 @@ export async function generateCommand(options: GenerateOptions) {
       const crossSpinner = p.spinner();
       crossSpinner.start("Analyzing cross-repository relationships...");
       try {
-        crossRepo = await analyzeCrossRepos(results, apiKey, model);
+        crossRepo = await analyzeCrossRepos(results, apiKey, model, (text) => {
+          crossSpinner.message(text.slice(0, 80));
+        });
         crossSpinner.stop(`Cross-repo analysis complete — ${crossRepo.repoRelationships.length} relationships found`);
       } catch (err) {
         crossSpinner.stop("Cross-repo analysis failed (non-fatal)");

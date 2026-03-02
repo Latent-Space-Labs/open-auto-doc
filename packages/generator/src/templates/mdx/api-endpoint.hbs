@@ -20,7 +20,7 @@ description: "API endpoints for {{repoName}}"
 | Name | Type | Required | Location | Description |
 |------|------|----------|----------|-------------|
 {{#each this.parameters}}
-| `{{this.name}}` | `{{this.type}}` | {{#if this.required}}Yes{{else}}No{{/if}} | {{this.location}} | {{this.description}} |
+| `{{this.name}}` | `{{pipeEscape this.type}}` | {{#if this.required}}Yes{{else}}No{{/if}} | {{this.location}} | {{pipeEscape this.description}} |
 {{/each}}
 {{/if}}
 

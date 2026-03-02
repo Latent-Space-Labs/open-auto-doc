@@ -1,0 +1,112 @@
+/**
+ * Escapes MDX-significant characters ({, }, <) that appear outside of
+ * fenced code blocks (``` ... ```) and inline code spans (` ... `).
+ *
+ * This prevents the Fumadocs MDX parser (micromark/acorn) from
+ * interpreting bare JSON objects, TypeScript generics, etc. as JSX.
+ */
+export function escapeMdxOutsideCode(mdx: string): string {
+  const result: string[] = [];
+  let i = 0;
+  const len = mdx.length;
+
+  while (i < len) {
+    // --- Fenced code block: ``` or more backticks at start of line ---
+    if (isStartOfLine(mdx, i) && mdx[i] === "`" && mdx[i + 1] === "`" && mdx[i + 2] === "`") {
+      const fenceLen = countBackticks(mdx, i);
+      const fence = mdx.slice(i, i + fenceLen);
+
+      // Copy the opening fence line (including info string)
+      let j = i;
+      while (j < len && mdx[j] !== "\n") j++;
+      if (j < len) j++; // include the newline
+      result.push(mdx.slice(i, j));
+      i = j;
+
+      // Copy everything until closing fence or end of string
+      const closingFenceRegex = new RegExp(`^${"`".repeat(fenceLen)}\\s*$`, "m");
+      let found = false;
+      while (i < len) {
+        // Check if current line is the closing fence
+        let lineEnd = mdx.indexOf("\n", i);
+        if (lineEnd === -1) lineEnd = len;
+        const line = mdx.slice(i, lineEnd);
+
+        if (closingFenceRegex.test(line)) {
+          // Copy closing fence line
+          result.push(mdx.slice(i, lineEnd < len ? lineEnd + 1 : lineEnd));
+          i = lineEnd < len ? lineEnd + 1 : lineEnd;
+          found = true;
+          break;
+        }
+
+        // Copy the line as-is (inside code block)
+        result.push(mdx.slice(i, lineEnd < len ? lineEnd + 1 : lineEnd));
+        i = lineEnd < len ? lineEnd + 1 : lineEnd;
+      }
+
+      if (!found) {
+        // Unclosed fence — rest of document is code, already copied
+      }
+      continue;
+    }
+
+    // --- Inline code span: ` ... ` ---
+    if (mdx[i] === "`") {
+      const backtickCount = countBackticks(mdx, i);
+      const opener = mdx.slice(i, i + backtickCount);
+      result.push(opener);
+      i += backtickCount;
+
+      // Find matching closer (same number of backticks, not preceded by more)
+      let found = false;
+      while (i < len) {
+        if (mdx[i] === "`") {
+          const closeCount = countBackticks(mdx, i);
+          if (closeCount === backtickCount) {
+            result.push(mdx.slice(i, i + closeCount));
+            i += closeCount;
+            found = true;
+            break;
+          }
+          // Different count — copy them literally (still inside code span)
+          result.push(mdx.slice(i, i + closeCount));
+          i += closeCount;
+        } else {
+          result.push(mdx[i]);
+          i++;
+        }
+      }
+
+      if (!found) {
+        // Unclosed inline code — content already copied as-is
+      }
+      continue;
+    }
+
+    // --- Regular text: escape MDX-significant characters ---
+    const ch = mdx[i];
+    if (ch === "{") {
+      result.push("\\{");
+    } else if (ch === "}") {
+      result.push("\\}");
+    } else if (ch === "<") {
+      result.push("\\<");
+    } else {
+      result.push(ch);
+    }
+    i++;
+  }
+
+  return result.join("");
+}
+
+function isStartOfLine(str: string, pos: number): boolean {
+  return pos === 0 || str[pos - 1] === "\n";
+}
+
+function countBackticks(str: string, pos: number): number {
+  let count = 0;
+  while (pos + count < str.length && str[pos + count] === "`") count++;
+  return count;
+}
