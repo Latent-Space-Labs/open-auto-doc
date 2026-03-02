@@ -13,6 +13,7 @@ import {
 } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
+import { ProgressTable, buildRepoSummary } from "../ui/progress-table.js";
 
 interface GenerateOptions {
   incremental?: boolean;
@@ -119,30 +120,19 @@ export async function generateCommand(options: GenerateOptions) {
   }
 
   // Phase 2: Analyze repos in parallel
-  const analyzeSpinner = p.spinner();
-  let completed = 0;
   const total = clones.length;
-  const repoStages: Record<string, string> = {};
-
-  const updateSpinner = () => {
-    const lines = Object.entries(repoStages)
-      .map(([name, status]) => `[${name}] ${status}`)
-      .join(" | ");
-    analyzeSpinner.message(`${completed}/${total} done — ${lines}`);
-  };
-
-  analyzeSpinner.start(`Analyzing ${total} ${total === 1 ? "repo" : "repos"} in parallel...`);
+  const progressTable = new ProgressTable({ repos: clones.map((c) => c.info.name) });
+  progressTable.start();
 
   const analysisPromises = clones.map(async (cloned) => {
     const repo = config.repos.find((r) => r.name === cloned.info.name)!;
     const repoName = repo.name;
 
-    const callbacks = {
-      onProgress: (stage: string, msg: string) => {
-        repoStages[repoName] = `${stage}: ${msg}`;
-        updateSpinner();
-      },
+    const onProgress = (stage: string, msg: string) => {
+      progressTable.update(repoName, { status: "active", message: `${stage}: ${msg}` });
     };
+
+    progressTable.update(repoName, { status: "active", message: "Starting..." });
 
     try {
       let result: AnalysisResult;
@@ -158,7 +148,7 @@ export async function generateCommand(options: GenerateOptions) {
             model,
             previousResult: cached.result,
             previousCommitSha: cached.commitSha,
-            ...callbacks,
+            onProgress,
           });
         } else {
           result = await analyzeRepository({
@@ -167,7 +157,7 @@ export async function generateCommand(options: GenerateOptions) {
             repoUrl: repo.htmlUrl,
             apiKey,
             model,
-            ...callbacks,
+            onProgress,
           });
         }
       } else {
@@ -177,7 +167,7 @@ export async function generateCommand(options: GenerateOptions) {
           repoUrl: repo.htmlUrl,
           apiKey,
           model,
-          ...callbacks,
+          onProgress,
         });
       }
 
@@ -189,25 +179,28 @@ export async function generateCommand(options: GenerateOptions) {
         // Cache save failure is non-fatal
       }
 
-      completed++;
-      delete repoStages[repoName];
-      updateSpinner();
+      progressTable.update(repoName, { status: "done", summary: buildRepoSummary(result) });
       return { repo: repoName, result };
     } catch (err) {
-      completed++;
-      delete repoStages[repoName];
-      updateSpinner();
-      p.log.warn(`[${repoName}] Analysis failed: ${err instanceof Error ? err.message : err}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      progressTable.update(repoName, { status: "failed", error: errMsg });
+      p.log.warn(`[${repoName}] Analysis failed: ${errMsg}`);
       return { repo: repoName, result: null };
     }
   });
 
   const settled = await Promise.all(analysisPromises);
+  progressTable.stop();
+
   const freshResults: AnalysisResult[] = settled
     .filter((s) => s.result !== null)
     .map((s) => s.result!);
 
-  analyzeSpinner.stop(`Analyzed ${freshResults.length}/${total} ${total === 1 ? "repository" : "repositories"}`);
+  const { done: analyzedCount, failed: failedCount } = progressTable.getSummary();
+  p.log.step(
+    `Analyzed ${analyzedCount}/${total} ${total === 1 ? "repository" : "repositories"}` +
+    (failedCount > 0 ? ` (${failedCount} failed)` : ""),
+  );
 
   // Combine fresh results with cached results from other repos
   const results: AnalysisResult[] = [...freshResults, ...cachedResults];

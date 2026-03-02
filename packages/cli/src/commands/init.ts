@@ -18,6 +18,7 @@ import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
+import { ProgressTable, buildRepoSummary } from "../ui/progress-table.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -117,22 +118,13 @@ export async function initCommand(options: { output?: string }) {
   }
 
   // Step 5: Analyze all repos in parallel
-  const analyzeSpinner = p.spinner();
-  let completed = 0;
   const total = clones.length;
-  const repoStages: Record<string, string> = {};
-
-  const updateSpinner = () => {
-    const lines = Object.entries(repoStages)
-      .map(([name, status]) => `[${name}] ${status}`)
-      .join(" | ");
-    analyzeSpinner.message(`${completed}/${total} done — ${lines}`);
-  };
-
-  analyzeSpinner.start(`Analyzing ${total} ${total === 1 ? "repo" : "repos"} in parallel...`);
+  const progressTable = new ProgressTable({ repos: clones.map((c) => c.info.name) });
+  progressTable.start();
 
   const analysisPromises = clones.map(async (cloned) => {
     const repoName = cloned.info.name;
+    progressTable.update(repoName, { status: "active", message: "Starting..." });
     try {
       const result = await analyzeRepository({
         repoPath: cloned.localPath,
@@ -141,30 +133,30 @@ export async function initCommand(options: { output?: string }) {
         apiKey,
         model,
         onProgress: (stage, msg) => {
-          repoStages[repoName] = `${stage}: ${msg}`;
-          updateSpinner();
+          progressTable.update(repoName, { status: "active", message: `${stage}: ${msg}` });
         },
       });
-      completed++;
-      delete repoStages[repoName];
-      updateSpinner();
+      progressTable.update(repoName, { status: "done", summary: buildRepoSummary(result) });
       return { repo: repoName, result };
     } catch (err) {
-      completed++;
-      delete repoStages[repoName];
-      updateSpinner();
-      p.log.warn(`[${repoName}] Analysis failed: ${err instanceof Error ? err.message : err}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      progressTable.update(repoName, { status: "failed", error: errMsg });
+      p.log.warn(`[${repoName}] Analysis failed: ${errMsg}`);
       return { repo: repoName, result: null };
     }
   });
 
   const settled = await Promise.all(analysisPromises);
+  progressTable.stop();
+
   const results: AnalysisResult[] = settled
     .filter((s) => s.result !== null)
     .map((s) => s.result!);
 
-  analyzeSpinner.stop(
-    `Analyzed ${results.length}/${total} repositories` +
+  const { done, failed } = progressTable.getSummary();
+  p.log.step(
+    `Analyzed ${done}/${total} repositories` +
+    (failed > 0 ? ` (${failed} failed)` : "") +
     (results.length > 0
       ? ` — ${results.reduce((n, r) => n + r.apiEndpoints.length, 0)} endpoints, ${results.reduce((n, r) => n + r.components.length, 0)} components, ${results.reduce((n, r) => n + r.diagrams.length, 0)} diagrams`
       : ""),
