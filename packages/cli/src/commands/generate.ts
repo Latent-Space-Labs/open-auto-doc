@@ -56,6 +56,23 @@ export async function generateCommand(options: GenerateOptions) {
     process.exit(1);
   }
 
+  // Model selection
+  const model = (await p.select({
+    message: "Which model should analyze your repos?",
+    options: [
+      { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", hint: "Fast & capable (recommended)" },
+      { value: "claude-haiku-4-5", label: "Claude Haiku 4.5", hint: "Fastest & cheapest" },
+      { value: "claude-opus-4-6", label: "Claude Opus 4.6", hint: "Most capable, slowest" },
+    ],
+  })) as string;
+
+  if (p.isCancel(model)) {
+    p.cancel("Cancelled.");
+    process.exit(0);
+  }
+
+  p.log.info(`Using ${model}`);
+
   const incremental = options.incremental && !options.force;
   const cacheDir = path.join(config.outputDir, ".autodoc-cache");
 
@@ -115,6 +132,7 @@ export async function generateCommand(options: GenerateOptions) {
             repoName: repo.name,
             repoUrl: repo.htmlUrl,
             apiKey,
+            model,
             previousResult: cached.result,
             previousCommitSha: cached.commitSha,
           });
@@ -124,6 +142,7 @@ export async function generateCommand(options: GenerateOptions) {
             repoName: repo.name,
             repoUrl: repo.htmlUrl,
             apiKey,
+            model,
           });
         }
       } else {
@@ -132,6 +151,7 @@ export async function generateCommand(options: GenerateOptions) {
           repoName: repo.name,
           repoUrl: repo.htmlUrl,
           apiKey,
+          model,
         });
       }
 
@@ -168,7 +188,7 @@ export async function generateCommand(options: GenerateOptions) {
       const crossSpinner = p.spinner();
       crossSpinner.start("Analyzing cross-repository relationships...");
       try {
-        crossRepo = await analyzeCrossRepos(results, apiKey);
+        crossRepo = await analyzeCrossRepos(results, apiKey, model);
         crossSpinner.stop(`Cross-repo analysis complete — ${crossRepo.repoRelationships.length} relationships found`);
       } catch (err) {
         crossSpinner.stop("Cross-repo analysis failed (non-fatal)");
