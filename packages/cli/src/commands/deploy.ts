@@ -140,6 +140,37 @@ export async function deployCommand(options: DeployOptions) {
 
   // First-time setup: create GitHub repo and push
   const username = await getGitHubUsername(octokit);
+
+  // Fetch user's organizations
+  let orgs: Array<{ login: string }> = [];
+  try {
+    const { data } = await octokit.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
+    orgs = data;
+  } catch {
+    // If we can't fetch orgs, just offer personal account
+  }
+
+  // Let user pick owner (personal account or org)
+  const ownerOptions = [
+    { value: username, label: username, hint: "Personal account" },
+    ...orgs.map((org) => ({ value: org.login, label: org.login, hint: "Organization" })),
+  ];
+
+  let owner = username;
+  if (ownerOptions.length > 1) {
+    const selected = await p.select({
+      message: "Where should the docs repo be created?",
+      options: ownerOptions,
+    });
+
+    if (p.isCancel(selected)) {
+      p.cancel("Deploy cancelled.");
+      process.exit(0);
+    }
+    owner = selected as string;
+  }
+
+  const isOrg = owner !== username;
   const defaultName = config?.repos?.[0]
     ? `${config.repos[0].name}-docs`
     : "my-project-docs";
@@ -173,18 +204,30 @@ export async function deployCommand(options: DeployOptions) {
 
   const spinner = p.spinner();
 
-  // Create GitHub repo
-  spinner.start(`Creating GitHub repo ${username}/${repoName}...`);
+  // Create GitHub repo (under personal account or org)
+  spinner.start(`Creating GitHub repo ${owner}/${repoName}...`);
   let repoUrl: string;
   try {
-    const { data } = await octokit.rest.repos.createForAuthenticatedUser({
-      name: repoName as string,
-      private: visibility === "private",
-      description: "Auto-generated documentation site",
-      auto_init: false,
-    });
-    repoUrl = data.clone_url;
-    spinner.stop(`Created ${data.full_name}`);
+    if (isOrg) {
+      const { data } = await octokit.rest.repos.createInOrg({
+        org: owner,
+        name: repoName as string,
+        private: visibility === "private",
+        description: "Auto-generated documentation site",
+        auto_init: false,
+      });
+      repoUrl = data.clone_url;
+      spinner.stop(`Created ${data.full_name}`);
+    } else {
+      const { data } = await octokit.rest.repos.createForAuthenticatedUser({
+        name: repoName as string,
+        private: visibility === "private",
+        description: "Auto-generated documentation site",
+        auto_init: false,
+      });
+      repoUrl = data.clone_url;
+      spinner.stop(`Created ${data.full_name}`);
+    }
   } catch (err: any) {
     spinner.stop("Failed to create repo.");
     if (err?.status === 422) {
@@ -248,7 +291,7 @@ export async function deployCommand(options: DeployOptions) {
       "",
       "  1. Go to https://vercel.com/new",
       "  2. Click 'Import Git Repository'",
-      `  3. Select '${username}/${repoName}'`,
+      `  3. Select '${owner}/${repoName}'`,
       "  4. Click 'Deploy'",
       "",
       "Once connected, Vercel will auto-deploy on every push to the docs repo.",
@@ -256,5 +299,5 @@ export async function deployCommand(options: DeployOptions) {
     "Vercel Setup",
   );
 
-  p.outro(`Docs repo: https://github.com/${username}/${repoName}`);
+  p.outro(`Docs repo: https://github.com/${owner}/${repoName}`);
 }
