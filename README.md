@@ -5,7 +5,7 @@
 Turn any GitHub repo into a fully hosted documentation site — powered by AI that actually reads your code.
 
 ```bash
-npx open-auto-doc
+npx @latent-space-labs/open-auto-doc
 ```
 
 No config files. No manual writing. Just point it at your repos and get a production-ready docs site with architecture overviews, API references, component docs, and more.
@@ -16,13 +16,13 @@ No config files. No manual writing. Just point it at your repos and get a produc
 
 ```bash
 # Run directly (no install needed)
-npx open-auto-doc
+npx @latent-space-labs/open-auto-doc
 
 # Or install globally
-npm install -g open-auto-doc
+npm install -g @latent-space-labs/open-auto-doc
 ```
 
-After installing globally, you can run `open-auto-doc` from anywhere instead of `npx open-auto-doc`.
+After installing globally, you can run `open-auto-doc` from anywhere.
 
 ### Prerequisites
 
@@ -37,7 +37,7 @@ After installing globally, you can run `open-auto-doc` from anywhere instead of 
 ### 1. Generate your docs
 
 ```bash
-npx open-auto-doc
+npx @latent-space-labs/open-auto-doc
 ```
 
 The interactive CLI walks you through everything:
@@ -82,7 +82,7 @@ Open [http://localhost:3000](http://localhost:3000) to browse your docs.
 ### 3. Deploy
 
 ```bash
-npx open-auto-doc deploy
+open-auto-doc deploy
 ```
 
 This creates a GitHub repo for your docs site and pushes it. Then connect it to Vercel:
@@ -96,7 +96,7 @@ Your docs are now live. Every time you run `deploy` again, Vercel auto-deploys t
 ### 4. Set up CI/CD (optional)
 
 ```bash
-npx open-auto-doc setup-ci
+open-auto-doc setup-ci
 ```
 
 This generates a GitHub Actions workflow in your **source** repo that automatically re-analyzes your code and pushes updated docs whenever you push to main. Your docs stay up to date without you doing anything.
@@ -174,7 +174,7 @@ Push to main → GitHub Actions runs → AI re-analyzes your code → Updated do
 
 The workflow:
 1. Triggers on every push to your main branch (configurable)
-2. Installs `open-auto-doc` and runs `generate --incremental`
+2. Installs `@latent-space-labs/open-auto-doc` and runs `generate --incremental`
 3. Only re-analyzes files that changed (uses cached results for the rest)
 4. Pushes updated content to your docs repo
 5. Vercel picks up the push and auto-deploys
@@ -187,7 +187,7 @@ You can also trigger it manually from the Actions tab (`workflow_dispatch`).
 
 ```bash
 # 1. Install globally (optional — you can use npx instead)
-npm install -g open-auto-doc
+npm install -g @latent-space-labs/open-auto-doc
 
 # 2. Generate docs (interactive — picks repos, enters API key)
 open-auto-doc
@@ -257,7 +257,7 @@ npm run build
 
 ```
 packages/
-├── cli/            # Published as "open-auto-doc" — the CLI you run
+├── cli/            # Published as "@latent-space-labs/open-auto-doc" — the CLI you run
 ├── analyzer/       # AI code analysis engine (Claude Agent SDK)
 ├── generator/      # Handlebars MDX templates + Fumadocs site scaffolding
 └── site-template/  # Next.js + Fumadocs + Tailwind template (copied to user's project)
@@ -291,7 +291,7 @@ npm run release -- major   # 0.1.0 → 1.0.0
 git push && git push --tags
 ```
 
-The GitHub Actions workflow (`.github/workflows/publish.yml`) automatically publishes all three packages to npm when a `v*` tag is pushed.
+The GitHub Actions workflow (`.github/workflows/publish.yml`) automatically publishes to npm when a `v*` tag is pushed.
 
 ---
 

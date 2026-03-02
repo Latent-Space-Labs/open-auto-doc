@@ -72,7 +72,7 @@ jobs:
             autodoc-cache-
 
       - name: Install open-auto-doc
-        run: npm install -g open-auto-doc
+        run: npm install -g @latent-space-labs/open-auto-doc
 
       - name: Generate documentation
         env:

@@ -12,7 +12,6 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { join } from "node:path";
 
 const PACKAGES = [
   "packages/analyzer/package.json",
@@ -33,7 +32,6 @@ function bumpVersion(current, type) {
     case "patch":
       return `${major}.${minor}.${patch + 1}`;
     default:
-      // treat as explicit version
       if (/^\d+\.\d+\.\d+$/.test(type)) return type;
       console.error(`Invalid version bump: ${type}`);
       process.exit(1);
@@ -57,17 +55,6 @@ console.log(`Bumping version: ${currentVersion} → ${newVersion}\n`);
 for (const pkgPath of PACKAGES) {
   const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
   pkg.version = newVersion;
-
-  // Update internal dep references in CLI
-  if (pkgPath === CLI_PKG) {
-    if (pkg.dependencies["@latent-space-labs/auto-doc-analyzer"]) {
-      pkg.dependencies["@latent-space-labs/auto-doc-analyzer"] = `^${newVersion}`;
-    }
-    if (pkg.dependencies["@latent-space-labs/auto-doc-generator"]) {
-      pkg.dependencies["@latent-space-labs/auto-doc-generator"] = `^${newVersion}`;
-    }
-  }
-
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   console.log(`  Updated ${pkgPath} → ${newVersion}`);
 }
