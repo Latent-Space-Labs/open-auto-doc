@@ -13,7 +13,7 @@ import {
 } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
-import { ProgressTable, buildRepoSummary } from "../ui/progress-table.js";
+import { ProgressTable, buildRepoSummary, formatToolActivity } from "../ui/progress-table.js";
 import { runBuildCheck } from "../actions/build-check.js";
 
 interface GenerateOptions {
@@ -132,6 +132,9 @@ export async function generateCommand(options: GenerateOptions) {
     const onProgress = (stage: string, msg: string) => {
       progressTable.update(repoName, { status: "active", message: `${stage}: ${msg}` });
     };
+    const onToolUse = (event: { tool: string; target: string }) => {
+      progressTable.update(repoName, { activity: formatToolActivity(event) });
+    };
 
     progressTable.update(repoName, { status: "active", message: "Starting..." });
 
@@ -150,6 +153,7 @@ export async function generateCommand(options: GenerateOptions) {
             previousResult: cached.result,
             previousCommitSha: cached.commitSha,
             onProgress,
+            onToolUse,
           });
         } else {
           result = await analyzeRepository({
@@ -159,6 +163,7 @@ export async function generateCommand(options: GenerateOptions) {
             apiKey,
             model,
             onProgress,
+            onToolUse,
           });
         }
       } else {
@@ -169,6 +174,7 @@ export async function generateCommand(options: GenerateOptions) {
           apiKey,
           model,
           onProgress,
+          onToolUse,
         });
       }
 

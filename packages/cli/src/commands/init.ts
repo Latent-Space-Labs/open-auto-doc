@@ -21,7 +21,7 @@ import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
-import { ProgressTable, buildRepoSummary } from "../ui/progress-table.js";
+import { ProgressTable, buildRepoSummary, formatToolActivity } from "../ui/progress-table.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -137,6 +137,9 @@ export async function initCommand(options: { output?: string }) {
         model,
         onProgress: (stage, msg) => {
           progressTable.update(repoName, { status: "active", message: `${stage}: ${msg}` });
+        },
+        onToolUse: (event) => {
+          progressTable.update(repoName, { activity: formatToolActivity(event) });
         },
       });
       progressTable.update(repoName, { status: "done", summary: buildRepoSummary(result) });

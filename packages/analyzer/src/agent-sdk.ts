@@ -10,6 +10,7 @@ export interface AgentQueryOptions {
   allowedTools?: string[];
   maxTurns?: number;
   onAgentMessage?: (text: string) => void;
+  onToolUse?: (event: { tool: string; target: string }) => void;
   retryOnMaxTurns?: boolean;
 }
 
@@ -66,13 +67,33 @@ async function runAgentOnce<T>(options: AgentQueryOptions): Promise<T> {
   let lastMessage = "";
 
   for await (const message of result) {
-    if (message.type === "assistant" && options.onAgentMessage) {
+    if (message.type === "assistant") {
       for (const block of message.message.content) {
-        if (block.type === "text" && block.text) {
+        if (block.type === "text" && block.text && options.onAgentMessage) {
           const firstLine = block.text.split("\n")[0].trim();
           if (!firstLine || FILLER_PATTERNS.test(firstLine) || firstLine === lastMessage) continue;
           lastMessage = firstLine;
           options.onAgentMessage(truncateAtWord(firstLine, 80));
+        }
+        if (block.type === "tool_use" && options.onToolUse) {
+          const input = block.input as Record<string, unknown> | undefined;
+          if (input) {
+            const tool = block.name as string;
+            let target: string | undefined;
+            if (tool === "Read" && typeof input.file_path === "string") {
+              // Strip cwd prefix to show relative path
+              target = input.file_path.startsWith(options.cwd)
+                ? input.file_path.slice(options.cwd.length + 1)
+                : input.file_path;
+            } else if (tool === "Glob" && typeof input.pattern === "string") {
+              target = input.pattern;
+            } else if (tool === "Grep" && typeof input.pattern === "string") {
+              target = input.pattern;
+            }
+            if (target) {
+              options.onToolUse({ tool, target });
+            }
+          }
         }
       }
     }

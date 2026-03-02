@@ -47,6 +47,7 @@ export async function analyzeArchitecture(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<ArchitectureOverview> {
   const claudeMdContext = staticAnalysis.claudeMd
     .map((c) => `--- ${c.path} ---\n${c.content}`)
@@ -62,6 +63,7 @@ export async function analyzeArchitecture(
 
   return runAgent<ArchitectureOverview>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a senior software architect analyzing a codebase. Produce structured JSON analysis.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Analyze this repository's architecture.

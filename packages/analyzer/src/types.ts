@@ -198,6 +198,11 @@ export interface CrossRepoAnalysis {
   diagrams: MermaidDiagram[];
 }
 
+export interface ToolUseEvent {
+  tool: string;
+  target: string;
+}
+
 export interface AnalyzerOptions {
   repoPath: string;
   repoName: string;
@@ -207,4 +212,5 @@ export interface AnalyzerOptions {
   skipInit?: boolean;
   onProgress?: (stage: string, message: string) => void;
   onAgentMessage?: (text: string) => void;
+  onToolUse?: (event: ToolUseEvent) => void;
 }

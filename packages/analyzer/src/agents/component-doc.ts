@@ -47,11 +47,13 @@ export async function analyzeComponents(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<ComponentDoc[]> {
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
 
   const result = await runAgent<ComponentAnalysisResult>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a UI component documentation expert. Analyze source code and extract component documentation.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Find and document all UI components in this codebase.

@@ -25,6 +25,7 @@ export async function initializeRepo(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<StaticAnalysis> {
   // Skip if CLAUDE.md already exists
   if (staticAnalysis.claudeMd.length > 0) {
@@ -44,6 +45,7 @@ export async function initializeRepo(
 
   const result = await runAgent<RepoInitResult>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a senior developer writing a CLAUDE.md file for a codebase. CLAUDE.md is a concise project reference that helps AI agents understand the repo quickly. Your output must be valid JSON matching the provided schema.`,
     prompt: `Generate a CLAUDE.md file for this repository.
 

@@ -59,11 +59,13 @@ export async function analyzeApiEndpoints(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<ApiAnalysisResult> {
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
 
   return runAgent<ApiAnalysisResult>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are an API documentation expert. Analyze source code and extract API endpoint documentation.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Find and document all API endpoints in this codebase.

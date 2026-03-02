@@ -71,6 +71,7 @@ export async function analyzeCrossRepos(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<CrossRepoAnalysis> {
   const repoSummaries = results.map((r) => {
     const deps = r.staticAnalysis.dependencies
@@ -98,6 +99,7 @@ ${featuresSummary ? featuresSummary + "\n" : ""}**Modules:** ${r.architecture.mo
   // Use a temporary cwd (doesn't matter, no file tools used)
   return runAgent<CrossRepoAnalysis>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a system architect analyzing multiple repositories to understand how they relate.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Analyze the relationships between these ${results.length} repositories.

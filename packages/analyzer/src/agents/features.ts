@@ -42,11 +42,13 @@ export async function analyzeFeatures(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<FeaturesAnalysis> {
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
 
   return runAgent<FeaturesAnalysis>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a product documentation writer. Your job is to describe what software does from a USER's perspective — not how it's built internally.
 Focus on capabilities, features, and use cases that matter to someone evaluating or using this software.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,

@@ -12,6 +12,7 @@ export type { DiffEntry, DiffResult, AffectedSection } from "./diff.js";
 export type {
   AnalysisResult,
   AnalyzerOptions,
+  ToolUseEvent,
   ApiContract,
   ApiEndpoint,
   ArchitectureOverview,

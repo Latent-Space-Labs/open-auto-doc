@@ -56,11 +56,13 @@ export async function analyzeDataModels(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<ModelAnalysisResult> {
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
 
   return runAgent<ModelAnalysisResult>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a data modeling documentation expert. Analyze source code and extract data model documentation.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Find and document all data models in this codebase.

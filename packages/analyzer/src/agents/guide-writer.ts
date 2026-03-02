@@ -26,6 +26,7 @@ export async function writeGettingStarted(
   apiKey: string,
   model?: string,
   onAgentMessage?: (text: string) => void,
+  onToolUse?: (event: { tool: string; target: string }) => void,
 ): Promise<GettingStartedGuide> {
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
   const depsContext = staticAnalysis.dependencies
@@ -34,6 +35,7 @@ export async function writeGettingStarted(
 
   return runAgent<GettingStartedGuide>({
     onAgentMessage,
+    onToolUse,
     systemPrompt: `You are a technical writer creating getting-started guides for developers.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Create a getting-started guide for this project.

@@ -21,7 +21,7 @@ export interface IncrementalOptions extends AnalyzerOptions {
 process.setMaxListeners(Math.max(process.getMaxListeners(), 50));
 
 export async function analyzeRepository(options: AnalyzerOptions): Promise<AnalysisResult> {
-  const { repoPath, repoName, repoUrl, apiKey, model, skipInit, onProgress, onAgentMessage } = options;
+  const { repoPath, repoName, repoUrl, apiKey, model, skipInit, onProgress, onAgentMessage, onToolUse } = options;
 
   // Stage 1: Static parsing + import graph
   onProgress?.("static", "Parsing file tree and dependencies...");
@@ -47,7 +47,7 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
   // Repo init: generate CLAUDE.md if missing
   if (!skipInit) {
     onProgress?.("init", "Checking for project context...");
-    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
     if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
       staticAnalysis.claudeMd = updated.claudeMd;
       onProgress?.("init", "Generated CLAUDE.md for project context");
@@ -56,16 +56,16 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
 
   // Stage 2: Architecture pass (Agent SDK)
   onProgress?.("architecture", "Analyzing architecture with AI...");
-  const architecture = await analyzeArchitecture(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+  const architecture = await analyzeArchitecture(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
   onProgress?.("architecture", `Identified ${architecture.modules.length} modules, ${architecture.diagrams.length} diagrams`);
 
   // Stage 3: Detail pass (parallel, Agent SDK — failures are non-fatal)
   onProgress?.("details", "Analyzing APIs, components, data models, and features...");
   const [apiSettled, compSettled, modelSettled, featuresSettled] = await Promise.allSettled([
-    analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
-    analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
-    analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
-    analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
+    analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
+    analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
+    analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
+    analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
   ]);
 
   const apiResult = apiSettled.status === "fulfilled" ? apiSettled.value : null;
@@ -103,6 +103,7 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
     apiKey,
     model,
     onAgentMessage,
+    onToolUse,
   );
 
   return {
@@ -131,6 +132,7 @@ export async function analyzeRepositoryIncremental(
     skipInit,
     onProgress,
     onAgentMessage,
+    onToolUse,
     previousResult,
     previousCommitSha,
   } = options;
@@ -156,7 +158,7 @@ export async function analyzeRepositoryIncremental(
 
   // Repo init: generate CLAUDE.md if missing
   if (!skipInit) {
-    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
     if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
       staticAnalysis.claudeMd = updated.claudeMd;
     }
@@ -186,7 +188,7 @@ export async function analyzeRepositoryIncremental(
   let architecture = previousResult.architecture;
   if (affected.has("architecture")) {
     onProgress?.("architecture", "Re-analyzing architecture...");
-    architecture = await analyzeArchitecture(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+    architecture = await analyzeArchitecture(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
   }
 
   // Stage 3: Detail agents (selective)
@@ -205,7 +207,7 @@ export async function analyzeRepositoryIncremental(
 
   if (affected.has("api")) {
     promises.push(
-      analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+      analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
         (result) => {
           apiEndpoints = result.endpoints;
           apiDiagram = result.diagram;
@@ -218,7 +220,7 @@ export async function analyzeRepositoryIncremental(
 
   if (affected.has("components")) {
     promises.push(
-      analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+      analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
         (result) => {
           components = result;
         },
@@ -230,7 +232,7 @@ export async function analyzeRepositoryIncremental(
 
   if (affected.has("dataModels")) {
     promises.push(
-      analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+      analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
         (result) => {
           dataModels = result.models;
           modelDiagram = result.diagram;
@@ -243,7 +245,7 @@ export async function analyzeRepositoryIncremental(
 
   if (affected.has("features")) {
     promises.push(
-      analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+      analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
         (result) => {
           features = result;
         },
@@ -286,6 +288,7 @@ export async function analyzeRepositoryIncremental(
       apiKey,
       model,
       onAgentMessage,
+      onToolUse,
     );
   }
 

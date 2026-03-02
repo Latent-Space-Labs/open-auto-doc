@@ -94,6 +94,8 @@ interface RepoState {
   message: string;  // e.g. "architecture: Analyzing architecture..."
   summary: string;  // e.g. "3 endpoints, 12 components, 2 diagrams"
   error: string;
+  activity: string; // e.g. "Reading src/routes/api.ts"
+  activityTs: number; // timestamp of last activity update
 }
 
 // ── ProgressTable ────────────────────────────────────────────────────
@@ -114,7 +116,7 @@ export class ProgressTable {
     this.maxNameLen = Math.max(...options.repos.map((r) => r.length), 4);
 
     for (const repo of options.repos) {
-      this.states.set(repo, { status: "queued", message: "", summary: "", error: "" });
+      this.states.set(repo, { status: "queued", message: "", summary: "", error: "", activity: "", activityTs: 0 });
     }
 
     this.isTTY = process.stdout.isTTY === true;
@@ -137,16 +139,25 @@ export class ProgressTable {
     }
   }
 
-  update(repo: string, patch: { status?: RepoStatus; message?: string; summary?: string; error?: string }): void {
+  update(repo: string, patch: { status?: RepoStatus; message?: string; summary?: string; error?: string; activity?: string }): void {
     const state = this.states.get(repo);
     if (!state) return;
 
     const prevStatus = state.status;
 
     if (patch.status !== undefined) state.status = patch.status;
-    if (patch.message !== undefined) state.message = patch.message;
+    if (patch.message !== undefined) {
+      state.message = patch.message;
+      // Clear stale activity when stage message changes
+      state.activity = "";
+      state.activityTs = 0;
+    }
     if (patch.summary !== undefined) state.summary = patch.summary;
     if (patch.error !== undefined) state.error = patch.error;
+    if (patch.activity !== undefined) {
+      state.activity = patch.activity;
+      state.activityTs = Date.now();
+    }
 
     // Non-TTY: log transitions
     if (!this.isTTY && patch.status && patch.status !== prevStatus) {
@@ -212,7 +223,11 @@ export class ProgressTable {
           break;
         case "active": {
           const frame = SPINNER_FRAMES[this.spinnerIdx];
-          line = `${dim(S_BAR)}  ${magenta(frame)} ${paddedName}  ${dim(state.message)}`;
+          let activitySuffix = "";
+          if (state.activity && state.activityTs > 0 && Date.now() - state.activityTs < 3000) {
+            activitySuffix = dim(" | " + state.activity);
+          }
+          line = `${dim(S_BAR)}  ${magenta(frame)} ${paddedName}  ${dim(state.message)}${activitySuffix}`;
           break;
         }
         case "done":
@@ -254,6 +269,21 @@ export class ProgressTable {
 
     this.lineCount = lines.length;
     process.stdout.write(output);
+  }
+}
+
+// ── Tool activity formatter ──────────────────────────────────────────
+
+export function formatToolActivity(event: { tool: string; target: string }): string {
+  switch (event.tool) {
+    case "Read":
+      return `Reading ${event.target}`;
+    case "Glob":
+      return `Searching ${event.target}`;
+    case "Grep":
+      return `Grep: ${event.target}`;
+    default:
+      return `${event.tool}: ${event.target}`;
   }
 }
 
