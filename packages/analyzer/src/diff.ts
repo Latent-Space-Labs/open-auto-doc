@@ -14,7 +14,10 @@ export type AffectedSection =
   | "components"
   | "dataModels"
   | "features"
-  | "gettingStarted";
+  | "gettingStarted"
+  | "configuration"
+  | "businessLogic"
+  | "errorHandling";
 
 export interface DiffResult {
   entries: DiffEntry[];
@@ -73,6 +76,25 @@ const SECTION_PATTERNS: Record<AffectedSection, RegExp[]> = {
     /contributing/i,
     /getting.?started/i,
   ],
+  configuration: [
+    /\.env/i,
+    /config\//i,
+    /settings\//i,
+    /\.config\.(ts|js|mjs|cjs)$/,
+  ],
+  businessLogic: [
+    /services?\//i,
+    /domain\//i,
+    /rules?\//i,
+    /validators?\//i,
+    /policies?\//i,
+    /workflows?\//i,
+  ],
+  errorHandling: [
+    /errors?\//i,
+    /exceptions?\//i,
+    /middleware\//i,
+  ],
 };
 
 export function computeDiff(repoPath: string, fromSha: string): DiffEntry[] {
@@ -121,6 +143,9 @@ export function classifyChanges(
         "dataModels",
         "features",
         "gettingStarted",
+        "configuration",
+        "businessLogic",
+        "errorHandling",
       ]),
       fullRegenRequired: true,
     };

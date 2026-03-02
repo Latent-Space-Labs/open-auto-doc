@@ -7,11 +7,12 @@ import {
   analyzeRepository,
   analyzeRepositoryIncremental,
   analyzeCrossRepos,
+  computeChangelog,
   saveCache,
   loadCache,
   getHeadSha,
 } from "@latent-space-labs/auto-doc-analyzer";
-import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
+import type { AnalysisResult, ChangelogEntry, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 import { ProgressTable, buildRepoSummary, formatToolActivity } from "../ui/progress-table.js";
 import { runBuildCheck } from "../actions/build-check.js";
@@ -125,6 +126,8 @@ export async function generateCommand(options: GenerateOptions) {
   const progressTable = new ProgressTable({ repos: clones.map((c) => c.info.name) });
   progressTable.start();
 
+  const changelogs = new Map<string, ChangelogEntry>();
+
   const analysisPromises = clones.map(async (cloned) => {
     const repo = config.repos.find((r) => r.name === cloned.info.name)!;
     const repoName = repo.name;
@@ -140,9 +143,9 @@ export async function generateCommand(options: GenerateOptions) {
 
     try {
       let result: AnalysisResult;
+      const cached = loadCache(cacheDir, repo.name);
 
       if (incremental) {
-        const cached = loadCache(cacheDir, repo.name);
         if (cached) {
           result = await analyzeRepositoryIncremental({
             repoPath: cloned.localPath,
@@ -176,6 +179,19 @@ export async function generateCommand(options: GenerateOptions) {
           onProgress,
           onToolUse,
         });
+      }
+
+      // Compute changelog BEFORE saving cache (so we can compare old vs new)
+      if (cached) {
+        try {
+          const headSha = getHeadSha(cloned.localPath);
+          const changelog = computeChangelog(cached.result, result, cached.commitSha, headSha);
+          if (changelog.added.length > 0 || changelog.removed.length > 0 || changelog.modified.length > 0) {
+            changelogs.set(repoName, changelog);
+          }
+        } catch {
+          // Changelog computation failure is non-fatal
+        }
       }
 
       // Save cache
@@ -231,8 +247,8 @@ export async function generateCommand(options: GenerateOptions) {
 
     // Phase 4: Generate docs
     const contentDir = path.join(config.outputDir, "content", "docs");
-    await writeContent(contentDir, results, crossRepo);
-    await writeMeta(contentDir, results, crossRepo);
+    await writeContent(contentDir, results, crossRepo, changelogs.size > 0 ? changelogs : undefined);
+    await writeMeta(contentDir, results, crossRepo, changelogs.size > 0 ? changelogs : undefined);
 
     // Build quality check — verifies MDX compiles, auto-fixes errors
     try {

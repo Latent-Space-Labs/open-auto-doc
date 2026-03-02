@@ -1,0 +1,36 @@
+---
+title: "What Changed"
+description: "Documentation changelog for {{repoName}}"
+---
+
+# What Changed
+
+{{{summary}}}
+
+**Commit range:** `{{fromCommit}}` → `{{toCommit}}`
+
+**Generated:** {{generatedAt}}
+
+{{#if added.length}}
+## Added
+
+{{#each added}}
+- **{{this.name}}** ({{this.section}}) — {{this.description}}
+{{/each}}
+{{/if}}
+
+{{#if removed.length}}
+## Removed
+
+{{#each removed}}
+- **{{this.name}}** ({{this.section}}) — {{this.description}}
+{{/each}}
+{{/if}}
+
+{{#if modified.length}}
+## Modified
+
+{{#each modified}}
+- **{{this.name}}** ({{this.section}}) — {{this.description}}
+{{/each}}
+{{/if}}

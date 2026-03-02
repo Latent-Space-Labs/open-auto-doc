@@ -1,0 +1,33 @@
+---
+title: "Configuration Reference"
+description: "Configuration options and environment variables for {{repoName}}"
+---
+
+# Configuration Reference
+
+{{#if configFiles.length}}
+## Configuration Files
+
+{{#each configFiles}}
+- `{{this}}`
+{{/each}}
+{{/if}}
+
+{{#each configByCategory}}
+## {{@key}}
+
+| Name | Source | Type | Default | Required | Description |
+|------|--------|------|---------|----------|-------------|
+{{#each this}}
+| `{{this.name}}` | `{{pipeEscape this.source}}` | `{{pipeEscape this.type}}` | {{#if this.defaultValue}}`{{pipeEscape this.defaultValue}}`{{else}}-{{/if}} | {{#if this.required}}Yes{{else}}No{{/if}} | {{pipeEscape this.description}} |
+{{/each}}
+
+{{/each}}
+
+{{#if environmentVariables.length}}
+## Environment Variables
+
+{{#each environmentVariables}}
+- `{{this}}`
+{{/each}}
+{{/if}}

@@ -1,0 +1,83 @@
+---
+title: "Business Logic"
+description: "Domain concepts, business rules, and workflows for {{repoName}}"
+---
+
+# Business Logic & Domain Concepts
+
+{{#if domainConcepts.length}}
+## Domain Concepts
+
+{{#each domainConcepts}}
+### {{this.name}}
+
+{{this.description}}
+
+{{#if this.relatedFiles.length}}
+<details>
+<summary>Related files</summary>
+
+{{#each this.relatedFiles}}
+- `{{this}}`
+{{/each}}
+
+</details>
+{{/if}}
+
+{{/each}}
+{{/if}}
+
+{{#if businessRules.length}}
+## Business Rules
+
+{{#each businessRules}}
+### {{this.name}}
+
+{{this.description}}
+
+{{#if this.category}}**Category:** {{this.category}}{{/if}}
+
+{{#if this.sourceFiles.length}}
+<details>
+<summary>Source files</summary>
+
+{{#each this.sourceFiles}}
+- `{{this}}`
+{{/each}}
+
+</details>
+{{/if}}
+
+{{/each}}
+{{/if}}
+
+{{#if workflows.length}}
+## Workflows
+
+{{#each workflows}}
+### {{this.name}}
+
+{{this.description}}
+
+{{#if this.steps.length}}
+{{#each this.steps}}
+{{@index}}. {{this}}
+{{/each}}
+{{/if}}
+
+{{#if this.diagram}}
+```mermaid
+{{{this.diagram.mermaidSyntax}}}
+```
+{{/if}}
+
+{{/each}}
+{{/if}}
+
+{{#if keyInvariants.length}}
+## Key Invariants
+
+{{#each keyInvariants}}
+- {{this}}
+{{/each}}
+{{/if}}

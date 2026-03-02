@@ -1,0 +1,47 @@
+---
+title: "Error Handling"
+description: "Error codes, troubleshooting, and debugging for {{repoName}}"
+---
+
+# Error Handling & Troubleshooting
+
+{{#if errorClasses.length}}
+## Error Classes
+
+{{#each errorClasses}}
+- `{{this}}`
+{{/each}}
+{{/if}}
+
+{{#if errorCodes.length}}
+## Error Codes
+
+| Code | HTTP Status | Message | Description |
+|------|-------------|---------|-------------|
+{{#each errorCodes}}
+| `{{this.code}}` | {{#if this.httpStatus}}{{this.httpStatus}}{{else}}-{{/if}} | {{pipeEscape this.message}} | {{pipeEscape this.description}} |
+{{/each}}
+{{/if}}
+
+{{#if commonErrors.length}}
+## Common Errors & Solutions
+
+{{#each commonErrors}}
+### {{this.error}}
+
+{{#if this.category}}**Category:** {{this.category}}{{/if}}
+
+**Cause:** {{this.cause}}
+
+**Solution:** {{this.solution}}
+
+{{/each}}
+{{/if}}
+
+{{#if debuggingTips.length}}
+## Debugging Tips
+
+{{#each debuggingTips}}
+- {{this}}
+{{/each}}
+{{/if}}

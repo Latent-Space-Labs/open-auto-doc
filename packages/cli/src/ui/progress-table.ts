@@ -303,5 +303,11 @@ export function buildRepoSummary(result: AnalysisResult): string {
   if (result.dataModels.length > 0) {
     parts.push(`${result.dataModels.length} model${result.dataModels.length === 1 ? "" : "s"}`);
   }
+  if (result.configuration && result.configuration.configItems.length > 0) {
+    parts.push(`${result.configuration.configItems.length} config${result.configuration.configItems.length === 1 ? "" : "s"}`);
+  }
+  if (result.errorHandling && result.errorHandling.errorCodes.length > 0) {
+    parts.push(`${result.errorHandling.errorCodes.length} error code${result.errorHandling.errorCodes.length === 1 ? "" : "s"}`);
+  }
   return parts.length > 0 ? parts.join(", ") : "Analysis complete";
 }

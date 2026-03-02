@@ -1,4 +1,4 @@
-import type { AnalysisResult, AnalyzerOptions, FeaturesAnalysis, MermaidDiagram, StaticAnalysis } from "./types.js";
+import type { AnalysisResult, AnalyzerOptions, BusinessLogicAnalysis, ConfigurationAnalysis, ErrorHandlingAnalysis, FeaturesAnalysis, MermaidDiagram, StaticAnalysis } from "./types.js";
 import { buildFileTree, detectEntryFiles, detectLanguages } from "./parsers/tree.js";
 import { parseDependencies } from "./parsers/dependencies.js";
 import { readClaudeMd } from "./parsers/claude-md.js";
@@ -8,6 +8,9 @@ import { analyzeApiEndpoints } from "./agents/api-doc.js";
 import { analyzeComponents } from "./agents/component-doc.js";
 import { analyzeDataModels } from "./agents/model-doc.js";
 import { analyzeFeatures } from "./agents/features.js";
+import { analyzeConfiguration } from "./agents/config-doc.js";
+import { analyzeBusinessLogic } from "./agents/business-logic.js";
+import { analyzeErrorHandling } from "./agents/error-doc.js";
 import { writeGettingStarted } from "./agents/guide-writer.js";
 import { initializeRepo } from "./agents/repo-init.js";
 import { computeDiff, classifyChanges, type AffectedSection } from "./diff.js";
@@ -60,23 +63,32 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
   onProgress?.("architecture", `Identified ${architecture.modules.length} modules, ${architecture.diagrams.length} diagrams`);
 
   // Stage 3: Detail pass (parallel, Agent SDK — failures are non-fatal)
-  onProgress?.("details", "Analyzing APIs, components, data models, and features...");
-  const [apiSettled, compSettled, modelSettled, featuresSettled] = await Promise.allSettled([
+  onProgress?.("details", "Analyzing APIs, components, data models, features, config, business logic, errors...");
+  const [apiSettled, compSettled, modelSettled, featuresSettled, configSettled, bizLogicSettled, errorSettled] = await Promise.allSettled([
     analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
     analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
     analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
     analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
+    analyzeConfiguration(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
+    analyzeBusinessLogic(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
+    analyzeErrorHandling(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse),
   ]);
 
   const apiResult = apiSettled.status === "fulfilled" ? apiSettled.value : null;
   const components = compSettled.status === "fulfilled" ? compSettled.value : [];
   const modelResult = modelSettled.status === "fulfilled" ? modelSettled.value : null;
   const features: FeaturesAnalysis | null = featuresSettled.status === "fulfilled" ? featuresSettled.value : null;
+  const configuration: ConfigurationAnalysis | null = configSettled.status === "fulfilled" ? configSettled.value : null;
+  const businessLogic: BusinessLogicAnalysis | null = bizLogicSettled.status === "fulfilled" ? bizLogicSettled.value : null;
+  const errorHandling: ErrorHandlingAnalysis | null = errorSettled.status === "fulfilled" ? errorSettled.value : null;
 
   if (apiSettled.status === "rejected") onProgress?.("details", `API analysis failed (non-fatal): ${apiSettled.reason}`);
   if (compSettled.status === "rejected") onProgress?.("details", `Component analysis failed (non-fatal): ${compSettled.reason}`);
   if (modelSettled.status === "rejected") onProgress?.("details", `Data model analysis failed (non-fatal): ${modelSettled.reason}`);
   if (featuresSettled.status === "rejected") onProgress?.("details", `Features analysis failed (non-fatal): ${featuresSettled.reason}`);
+  if (configSettled.status === "rejected") onProgress?.("details", `Configuration analysis failed (non-fatal): ${configSettled.reason}`);
+  if (bizLogicSettled.status === "rejected") onProgress?.("details", `Business logic analysis failed (non-fatal): ${bizLogicSettled.reason}`);
+  if (errorSettled.status === "rejected") onProgress?.("details", `Error handling analysis failed (non-fatal): ${errorSettled.reason}`);
 
   const apiEndpoints = apiResult?.endpoints ?? [];
   const dataModels = modelResult?.models ?? [];
@@ -87,6 +99,13 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
     ...(apiResult?.diagram ? [apiResult.diagram] : []),
     ...(modelResult?.diagram ? [modelResult.diagram] : []),
   ];
+
+  // Collect workflow diagrams from business logic
+  if (businessLogic) {
+    for (const workflow of businessLogic.workflows) {
+      if (workflow.diagram) diagrams.push(workflow.diagram);
+    }
+  }
 
   onProgress?.(
     "details",
@@ -117,6 +136,9 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
     dataModels,
     gettingStarted,
     diagrams,
+    configuration,
+    businessLogic,
+    errorHandling,
   };
 }
 
@@ -196,8 +218,12 @@ export async function analyzeRepositoryIncremental(
   let components = previousResult.components;
   let dataModels = previousResult.dataModels;
   let features = previousResult.features;
+  let configuration = previousResult.configuration;
+  let businessLogic = previousResult.businessLogic;
+  let errorHandling = previousResult.errorHandling;
   let apiDiagram: MermaidDiagram | undefined;
   let modelDiagram: MermaidDiagram | undefined;
+  const workflowDiagrams: MermaidDiagram[] = [];
 
   // Extract previous diagrams from detail agents for reuse
   const prevArchDiagramIds = new Set(previousResult.architecture.diagrams.map((d) => d.id));
@@ -255,6 +281,46 @@ export async function analyzeRepositoryIncremental(
     );
   }
 
+  if (affected.has("configuration")) {
+    promises.push(
+      analyzeConfiguration(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
+        (result) => {
+          configuration = result;
+        },
+      ).catch((err) => {
+        onProgress?.("details", `Configuration re-analysis failed (non-fatal): ${err}`);
+      }),
+    );
+  }
+
+  if (affected.has("businessLogic")) {
+    promises.push(
+      analyzeBusinessLogic(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
+        (result) => {
+          businessLogic = result;
+          // Collect workflow diagrams
+          for (const workflow of result.workflows) {
+            if (workflow.diagram) workflowDiagrams.push(workflow.diagram);
+          }
+        },
+      ).catch((err) => {
+        onProgress?.("details", `Business logic re-analysis failed (non-fatal): ${err}`);
+      }),
+    );
+  }
+
+  if (affected.has("errorHandling")) {
+    promises.push(
+      analyzeErrorHandling(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage, onToolUse).then(
+        (result) => {
+          errorHandling = result;
+        },
+      ).catch((err) => {
+        onProgress?.("details", `Error handling re-analysis failed (non-fatal): ${err}`);
+      }),
+    );
+  }
+
   if (promises.length > 0) {
     onProgress?.("details", "Re-analyzing affected sections...");
     await Promise.all(promises);
@@ -274,6 +340,16 @@ export async function analyzeRepositoryIncremental(
   } else {
     const prevModelDiag = prevDetailDiagrams.find((d) => d.id.includes("model") || d.id.includes("er"));
     if (prevModelDiag) diagrams.push(prevModelDiag);
+  }
+
+  // Add workflow diagrams from business logic
+  if (affected.has("businessLogic")) {
+    diagrams.push(...workflowDiagrams);
+  } else if (businessLogic) {
+    // Reuse previous workflow diagrams
+    for (const workflow of businessLogic.workflows) {
+      if (workflow.diagram) diagrams.push(workflow.diagram);
+    }
   }
 
   // Stage 4: Getting started (re-run if affected)
@@ -303,5 +379,8 @@ export async function analyzeRepositoryIncremental(
     dataModels,
     gettingStarted,
     diagrams,
+    configuration,
+    businessLogic,
+    errorHandling,
   };
 }

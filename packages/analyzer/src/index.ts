@@ -9,6 +9,7 @@ export { saveCache, loadCache } from "./cache.js";
 export type { AnalysisCache } from "./cache.js";
 export { computeDiff, classifyChanges, getHeadSha } from "./diff.js";
 export type { DiffEntry, DiffResult, AffectedSection } from "./diff.js";
+export { computeChangelog } from "./changelog.js";
 export type {
   AnalysisResult,
   AnalyzerOptions,
@@ -16,11 +17,21 @@ export type {
   ApiContract,
   ApiEndpoint,
   ArchitectureOverview,
+  BusinessLogicAnalysis,
+  BusinessRule,
+  ChangelogChange,
+  ChangelogEntry,
+  CommonError,
   ComponentDoc,
+  ConfigurationAnalysis,
+  ConfigurationItem,
   CrossRepoAnalysis,
   DataModelDoc,
   DependencyInfo,
+  DomainConcept,
   ClaudeMdContent,
+  ErrorCode,
+  ErrorHandlingAnalysis,
   Feature,
   FeaturesAnalysis,
   FieldDoc,
@@ -37,4 +48,5 @@ export type {
   RepoRelationship,
   StaticAnalysis,
   UseCase,
+  Workflow,
 } from "./types.js";

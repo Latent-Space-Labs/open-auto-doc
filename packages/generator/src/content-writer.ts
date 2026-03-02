@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import path from "node:path";
 import Handlebars from "handlebars";
 import { fileURLToPath } from "node:url";
-import type { AnalysisResult, CrossRepoAnalysis } from "./types.js";
+import type { AnalysisResult, ChangelogEntry, CrossRepoAnalysis } from "./types.js";
 import { escapeMdxOutsideCode } from "./mdx-escape.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,7 +46,7 @@ function loadTemplates() {
     );
   }
 
-  const templateFiles = ["overview", "features", "getting-started", "architecture", "api-endpoint", "component", "data-model", "diagrams", "cross-repo"];
+  const templateFiles = ["overview", "features", "getting-started", "architecture", "api-endpoint", "component", "data-model", "diagrams", "cross-repo", "configuration", "business-logic", "error-handling", "changelog"];
   for (const name of templateFiles) {
     const filePath = path.join(templateDir, `${name}.hbs`);
     if (fs.existsSync(filePath)) {
@@ -63,6 +63,7 @@ export async function writeContent(
   contentDir: string,
   results: AnalysisResult[],
   crossRepo?: CrossRepoAnalysis,
+  changelogs?: Map<string, ChangelogEntry>,
 ): Promise<void> {
   loadTemplates();
 
@@ -70,7 +71,8 @@ export async function writeContent(
 
   if (results.length === 1) {
     // Single repo — write directly to content/docs/
-    await writeRepoContent(contentDir, results[0]);
+    const changelog = changelogs?.get(results[0].repoName);
+    await writeRepoContent(contentDir, results[0], changelog);
   } else {
     // Multiple repos — each in its own subdirectory
     // Write a root index that links to all repos
@@ -86,7 +88,8 @@ export async function writeContent(
 
     for (const result of results) {
       const repoDir = path.join(contentDir, slugify(result.repoName));
-      await writeRepoContent(repoDir, result);
+      const changelog = changelogs?.get(result.repoName);
+      await writeRepoContent(repoDir, result, changelog);
     }
   }
 }
@@ -117,7 +120,7 @@ ${repoCards}
   await fs.writeFile(path.join(contentDir, "index.mdx"), escapeMdxOutsideCode(mdx));
 }
 
-async function writeRepoContent(dir: string, result: AnalysisResult): Promise<void> {
+async function writeRepoContent(dir: string, result: AnalysisResult, changelog?: ChangelogEntry): Promise<void> {
   await fs.ensureDir(dir);
 
   // Cast to record for template rendering
@@ -202,6 +205,72 @@ async function writeRepoContent(dir: string, result: AnalysisResult): Promise<vo
       path.join(dir, "diagrams.mdx"),
       renderTemplate("diagrams", safeResult),
     );
+  }
+
+  // Configuration
+  if (safeResult.configuration && safeResult.configuration.configItems.length > 0 && templates["configuration"]) {
+    // Group config items by category
+    const configByCategory: Record<string, typeof safeResult.configuration.configItems> = {};
+    for (const item of safeResult.configuration.configItems) {
+      const cat = item.category || "General";
+      if (!configByCategory[cat]) configByCategory[cat] = [];
+      configByCategory[cat].push(item);
+    }
+
+    await fs.writeFile(
+      path.join(dir, "configuration.mdx"),
+      renderTemplate("configuration", {
+        ...safeResult,
+        configByCategory,
+        configFiles: safeResult.configuration.configFiles,
+        environmentVariables: safeResult.configuration.environmentVariables,
+      }),
+    );
+  }
+
+  // Business Logic
+  if (safeResult.businessLogic && templates["business-logic"]) {
+    const bl = safeResult.businessLogic;
+    if (bl.domainConcepts.length > 0 || bl.businessRules.length > 0 || bl.workflows.length > 0) {
+      await fs.writeFile(
+        path.join(dir, "business-logic.mdx"),
+        renderTemplate("business-logic", {
+          ...safeResult,
+          domainConcepts: bl.domainConcepts,
+          businessRules: bl.businessRules,
+          workflows: bl.workflows,
+          keyInvariants: bl.keyInvariants,
+        }),
+      );
+    }
+  }
+
+  // Error Handling
+  if (safeResult.errorHandling && templates["error-handling"]) {
+    const eh = safeResult.errorHandling;
+    if (eh.errorCodes.length > 0 || eh.commonErrors.length > 0) {
+      await fs.writeFile(
+        path.join(dir, "error-handling.mdx"),
+        renderTemplate("error-handling", {
+          ...safeResult,
+          errorCodes: eh.errorCodes,
+          commonErrors: eh.commonErrors,
+          errorClasses: eh.errorClasses,
+          debuggingTips: eh.debuggingTips,
+        }),
+      );
+    }
+  }
+
+  // Changelog
+  if (changelog && templates["changelog"]) {
+    const hasChanges = changelog.added.length > 0 || changelog.removed.length > 0 || changelog.modified.length > 0;
+    if (hasChanges) {
+      await fs.writeFile(
+        path.join(dir, "changelog.mdx"),
+        renderTemplate("changelog", { ...safeResult, ...changelog }),
+      );
+    }
   }
 }
 

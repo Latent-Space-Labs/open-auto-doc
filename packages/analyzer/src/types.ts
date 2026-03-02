@@ -143,6 +143,91 @@ export interface FeaturesAnalysis {
   useCases: UseCase[];
 }
 
+// Configuration Reference
+export interface ConfigurationItem {
+  name: string;
+  source: string;
+  type: string;
+  defaultValue?: string;
+  required: boolean;
+  description: string;
+  category?: string;
+}
+
+export interface ConfigurationAnalysis {
+  configItems: ConfigurationItem[];
+  configFiles: string[];
+  environmentVariables: string[];
+}
+
+// Business Logic
+export interface DomainConcept {
+  name: string;
+  description: string;
+  relatedFiles: string[];
+}
+
+export interface BusinessRule {
+  name: string;
+  description: string;
+  sourceFiles: string[];
+  category?: string;
+}
+
+export interface Workflow {
+  name: string;
+  description: string;
+  steps: string[];
+  diagram?: MermaidDiagram;
+}
+
+export interface BusinessLogicAnalysis {
+  domainConcepts: DomainConcept[];
+  businessRules: BusinessRule[];
+  workflows: Workflow[];
+  keyInvariants: string[];
+}
+
+// Error Handling
+export interface ErrorCode {
+  code: string;
+  httpStatus?: number;
+  message: string;
+  description: string;
+  sourceFile?: string;
+}
+
+export interface CommonError {
+  error: string;
+  cause: string;
+  solution: string;
+  category?: string;
+}
+
+export interface ErrorHandlingAnalysis {
+  errorCodes: ErrorCode[];
+  commonErrors: CommonError[];
+  errorClasses: string[];
+  debuggingTips: string[];
+}
+
+// Changelog
+export interface ChangelogChange {
+  name: string;
+  description: string;
+  section: string;
+}
+
+export interface ChangelogEntry {
+  generatedAt: string;
+  fromCommit: string;
+  toCommit: string;
+  added: ChangelogChange[];
+  removed: ChangelogChange[];
+  modified: ChangelogChange[];
+  summary: string;
+}
+
 export interface GettingStartedGuide {
   prerequisites: string[];
   installation: string;
@@ -162,6 +247,9 @@ export interface AnalysisResult {
   dataModels: DataModelDoc[];
   gettingStarted: GettingStartedGuide;
   diagrams: MermaidDiagram[];
+  configuration: ConfigurationAnalysis | null;
+  businessLogic: BusinessLogicAnalysis | null;
+  errorHandling: ErrorHandlingAnalysis | null;
 }
 
 export interface ApiContract {
