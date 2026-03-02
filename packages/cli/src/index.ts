@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name("open-auto-doc")
   .description("Auto-generate beautiful documentation websites from GitHub repositories using AI")
-  .version("0.3.9");
+  .version("0.4.0");
 
 program
   .command("init", { isDefault: true })
