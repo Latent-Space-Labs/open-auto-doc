@@ -71,7 +71,7 @@ If no UI components are found, return an empty components array.`,
     apiKey,
     model,
     outputSchema: componentOutputSchema,
-    maxTurns: 25,
+    maxTurns: 40,
   });
 
   return result.components;

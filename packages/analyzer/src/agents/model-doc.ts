@@ -83,6 +83,6 @@ If no models are found, set the diagram to null and return an empty models array
     apiKey,
     model,
     outputSchema: modelOutputSchema,
-    maxTurns: 25,
+    maxTurns: 40,
   });
 }

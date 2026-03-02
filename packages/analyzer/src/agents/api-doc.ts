@@ -86,6 +86,6 @@ If no endpoints are found, set the diagram to null and return an empty endpoints
     apiKey,
     model,
     outputSchema: apiOutputSchema,
-    maxTurns: 25,
+    maxTurns: 40,
   });
 }

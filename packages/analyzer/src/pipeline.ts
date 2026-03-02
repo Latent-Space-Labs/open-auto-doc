@@ -44,22 +44,30 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
   const architecture = await analyzeArchitecture(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
   onProgress?.("architecture", `Identified ${architecture.modules.length} modules, ${architecture.diagrams.length} diagrams`);
 
-  // Stage 3: Detail pass (parallel, Agent SDK)
+  // Stage 3: Detail pass (parallel, Agent SDK — failures are non-fatal)
   onProgress?.("details", "Analyzing APIs, components, and data models...");
-  const [apiResult, components, modelResult] = await Promise.all([
+  const [apiSettled, compSettled, modelSettled] = await Promise.allSettled([
     analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
     analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
     analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
   ]);
 
-  const apiEndpoints = apiResult.endpoints;
-  const dataModels = modelResult.models;
+  const apiResult = apiSettled.status === "fulfilled" ? apiSettled.value : null;
+  const components = compSettled.status === "fulfilled" ? compSettled.value : [];
+  const modelResult = modelSettled.status === "fulfilled" ? modelSettled.value : null;
+
+  if (apiSettled.status === "rejected") onProgress?.("details", `API analysis failed (non-fatal): ${apiSettled.reason}`);
+  if (compSettled.status === "rejected") onProgress?.("details", `Component analysis failed (non-fatal): ${compSettled.reason}`);
+  if (modelSettled.status === "rejected") onProgress?.("details", `Data model analysis failed (non-fatal): ${modelSettled.reason}`);
+
+  const apiEndpoints = apiResult?.endpoints ?? [];
+  const dataModels = modelResult?.models ?? [];
 
   // Collect diagrams from all agents
   const diagrams: MermaidDiagram[] = [
     ...architecture.diagrams,
-    ...(apiResult.diagram ? [apiResult.diagram] : []),
-    ...(modelResult.diagram ? [modelResult.diagram] : []),
+    ...(apiResult?.diagram ? [apiResult.diagram] : []),
+    ...(modelResult?.diagram ? [modelResult.diagram] : []),
   ];
 
   onProgress?.(
@@ -173,7 +181,9 @@ export async function analyzeRepositoryIncremental(
           apiEndpoints = result.endpoints;
           apiDiagram = result.diagram;
         },
-      ),
+      ).catch((err) => {
+        onProgress?.("details", `API re-analysis failed (non-fatal): ${err}`);
+      }),
     );
   }
 
@@ -183,7 +193,9 @@ export async function analyzeRepositoryIncremental(
         (result) => {
           components = result;
         },
-      ),
+      ).catch((err) => {
+        onProgress?.("details", `Component re-analysis failed (non-fatal): ${err}`);
+      }),
     );
   }
 
@@ -194,7 +206,9 @@ export async function analyzeRepositoryIncremental(
           dataModels = result.models;
           modelDiagram = result.diagram;
         },
-      ),
+      ).catch((err) => {
+        onProgress?.("details", `Data model re-analysis failed (non-fatal): ${err}`);
+      }),
     );
   }
 
