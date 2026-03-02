@@ -15,6 +15,9 @@
     "dist",
     "templates"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"
@@ -28,6 +31,11 @@
     "typescript": "^5.7.0",
     "@types/node": "^22.12.0",
     "@types/fs-extra": "^11.0.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kyritzb/open-auto-doc.git",
+    "directory": "packages/generator"
   },
   "license": "MIT"
 }

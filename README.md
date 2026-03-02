@@ -12,28 +12,29 @@ No config files. No manual writing. Just point it at your repos and get a produc
 
 ---
 
-## How It Works
+## Install
 
+```bash
+# Run directly (no install needed)
+npx open-auto-doc
+
+# Or install globally
+npm install -g open-auto-doc
 ```
-Your GitHub Repos → AI Analysis → Docs Site → Deployed on Vercel
-```
 
-1. **You run one command** — the CLI authenticates with GitHub and lets you pick repos
-2. **AI reads your entire codebase** — not just comments, but actual code structure, patterns, and architecture
-3. **A complete docs site is generated** — built on [Fumadocs](https://fumadocs.dev) + Next.js with search, dark mode, and sidebar navigation
-4. **You deploy with one more command** — pushes to GitHub, connect to Vercel, and it's live
-
----
-
-## Quick Start
+After installing globally, you can run `open-auto-doc` from anywhere instead of `npx open-auto-doc`.
 
 ### Prerequisites
 
 - **Node.js 18+**
 - **A GitHub account** (public and/or private repos)
-- **An [Anthropic API key](https://console.anthropic.com/)** — used for AI analysis
+- **An [Anthropic API key](https://console.anthropic.com/)** — the AI engine that analyzes your code
 
-### Step 1: Generate your docs
+---
+
+## Quick Start
+
+### 1. Generate your docs
 
 ```bash
 npx open-auto-doc
@@ -68,16 +69,17 @@ The interactive CLI walks you through everything:
 └  Documentation generated successfully!
 ```
 
-### Step 2: Preview locally
+### 2. Preview locally
 
 ```bash
 cd docs-site
+npm install
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to browse your docs.
 
-### Step 3: Deploy to Vercel
+### 3. Deploy
 
 ```bash
 npx open-auto-doc deploy
@@ -91,34 +93,34 @@ This creates a GitHub repo for your docs site and pushes it. Then connect it to 
 
 Your docs are now live. Every time you run `deploy` again, Vercel auto-deploys the update.
 
-### Step 4 (Optional): Auto-update docs on every push
+### 4. Set up CI/CD (optional)
 
 ```bash
 npx open-auto-doc setup-ci
 ```
 
-This generates a GitHub Actions workflow in your **source** repo that automatically re-analyzes your code and pushes updated docs whenever you push to main.
+This generates a GitHub Actions workflow in your **source** repo that automatically re-analyzes your code and pushes updated docs whenever you push to main. Your docs stay up to date without you doing anything.
 
 ---
 
-## All Commands
+## Commands
 
 | Command | What it does |
 |---|---|
-| `npx open-auto-doc` | Full setup: GitHub auth → pick repos → AI analysis → generate site |
-| `npx open-auto-doc init -o <dir>` | Same as above, with a custom output directory (default: `docs-site`) |
-| `npx open-auto-doc generate` | Re-analyze and regenerate docs using saved config (`.autodocrc.json`) |
-| `npx open-auto-doc generate --incremental` | Only re-analyze files that changed since last run |
-| `npx open-auto-doc deploy` | Create a GitHub repo for docs and push (first run) or push updates (subsequent runs) |
-| `npx open-auto-doc setup-ci` | Generate a GitHub Actions workflow for automatic doc updates on push |
-| `npx open-auto-doc login` | Authenticate with GitHub |
-| `npx open-auto-doc logout` | Clear all stored credentials |
+| `open-auto-doc` | Full setup: GitHub auth, pick repos, AI analysis, generate site |
+| `open-auto-doc init -o <dir>` | Same as above, custom output directory (default: `docs-site`) |
+| `open-auto-doc generate` | Re-analyze and regenerate docs using saved config |
+| `open-auto-doc generate --incremental` | Only re-analyze files that changed since last run |
+| `open-auto-doc deploy` | Create a GitHub repo for docs and push |
+| `open-auto-doc setup-ci` | Generate a GitHub Actions workflow for auto-updating docs |
+| `open-auto-doc login` | Authenticate with GitHub |
+| `open-auto-doc logout` | Clear all stored credentials |
 
 ---
 
 ## What Gets Generated
 
-AI analyzes each repo through a 4-stage pipeline and produces:
+AI analyzes each repo through a multi-stage pipeline and produces:
 
 | Section | What it covers |
 |---|---|
@@ -151,29 +153,7 @@ docs-site/
 └── package.json
 ```
 
----
-
-## End-to-End Example
-
-Here's the full flow from zero to a deployed docs site:
-
-```bash
-# 1. Generate docs (interactive — picks repos, enters API key)
-npx open-auto-doc
-
-# 2. Preview locally
-cd docs-site && npm run dev
-
-# 3. Deploy to GitHub + Vercel
-cd .. && npx open-auto-doc deploy
-
-# 4. Set up auto-updates (optional)
-npx open-auto-doc setup-ci
-# → Add ANTHROPIC_API_KEY and DOCS_DEPLOY_TOKEN as GitHub secrets
-# → Commit and push the generated workflow file
-```
-
-That's it. Your docs are live and stay up to date.
+The site is built on [Fumadocs](https://fumadocs.dev) + Next.js with full-text search, dark mode, and sidebar navigation out of the box.
 
 ---
 
@@ -186,7 +166,45 @@ When you run `setup-ci`, it generates `.github/workflows/update-docs.yml` in you
 | `ANTHROPIC_API_KEY` | Your Anthropic API key from [console.anthropic.com](https://console.anthropic.com/) |
 | `DOCS_DEPLOY_TOKEN` | A GitHub Personal Access Token with `repo` scope — [create one here](https://github.com/settings/tokens) |
 
-The workflow triggers on every push to your main branch, re-runs the AI analysis, and pushes updated docs to your docs repo. Vercel picks up the push and auto-deploys.
+### How it works
+
+```
+Push to main → GitHub Actions runs → AI re-analyzes your code → Updated docs pushed to docs repo → Vercel auto-deploys
+```
+
+The workflow:
+1. Triggers on every push to your main branch (configurable)
+2. Installs `open-auto-doc` and runs `generate --incremental`
+3. Only re-analyzes files that changed (uses cached results for the rest)
+4. Pushes updated content to your docs repo
+5. Vercel picks up the push and auto-deploys
+
+You can also trigger it manually from the Actions tab (`workflow_dispatch`).
+
+---
+
+## End-to-End Example
+
+```bash
+# 1. Install globally (optional — you can use npx instead)
+npm install -g open-auto-doc
+
+# 2. Generate docs (interactive — picks repos, enters API key)
+open-auto-doc
+
+# 3. Preview locally
+cd docs-site && npm install && npm run dev
+
+# 4. Deploy to GitHub + Vercel
+cd .. && open-auto-doc deploy
+
+# 5. Set up auto-updates
+open-auto-doc setup-ci
+# → Add ANTHROPIC_API_KEY and DOCS_DEPLOY_TOKEN as GitHub secrets
+# → Commit and push the generated workflow file
+```
+
+That's it. Your docs are live and stay up to date.
 
 ---
 
@@ -208,12 +226,12 @@ It also reads dependency files (`package.json`, `requirements.txt`, `go.mod`, `C
 
 - **Re-generating** — After the first run, a `.autodocrc.json` config is saved. Run `open-auto-doc generate` to re-analyze without going through the full setup flow again. Use `--incremental` to only re-analyze changed files.
 
-- **Custom output directory** — Use `-o` to control where the site is generated: `npx open-auto-doc init -o my-docs`
+- **Custom output directory** — Use `-o` to control where the site is generated: `open-auto-doc init -o my-docs`
 
 - **Custom GitHub OAuth App** — The CLI uses a default GitHub OAuth App. To use your own:
   ```bash
   export OPEN_AUTO_DOC_GITHUB_CLIENT_ID=your_client_id
-  npx open-auto-doc
+  open-auto-doc
   ```
 
 ---
@@ -221,6 +239,8 @@ It also reads dependency files (`package.json`, `requirements.txt`, `go.mod`, `C
 ## Credentials
 
 Stored at `~/.open-auto-doc/credentials.json` with `0600` permissions. Contains your GitHub OAuth token and Anthropic API key. Run `open-auto-doc logout` to clear everything.
+
+Your API key is **never sent anywhere except directly to the Anthropic API**. All analysis runs locally on your machine (or in your CI runner).
 
 ---
 
@@ -231,10 +251,9 @@ git clone https://github.com/kyritzb/open-auto-doc.git
 cd open-auto-doc
 npm install
 npm run build
-node packages/cli/dist/index.js --help
 ```
 
-Monorepo structure:
+### Monorepo structure
 
 ```
 packages/
@@ -245,6 +264,34 @@ packages/
 ```
 
 Build all packages: `npm run build` (builds analyzer → generator → cli)
+
+### Local development
+
+```bash
+# Build and run the CLI locally
+npm run build
+node packages/cli/dist/index.js
+
+# Or link it globally for testing
+cd packages/cli && npm link
+open-auto-doc --help
+```
+
+### Publishing a new version
+
+Requires an `NPM_TOKEN` secret set in the GitHub repo settings.
+
+```bash
+# Bump version across all packages, commit, and tag
+npm run release -- patch   # 0.1.0 → 0.1.1
+npm run release -- minor   # 0.1.0 → 0.2.0
+npm run release -- major   # 0.1.0 → 1.0.0
+
+# Push the tag to trigger the publish workflow
+git push && git push --tags
+```
+
+The GitHub Actions workflow (`.github/workflows/publish.yml`) automatically publishes all three packages to npm when a `v*` tag is pushed.
 
 ---
 

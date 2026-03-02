@@ -9,7 +9,8 @@
   "scripts": {
     "build": "npm run build -w packages/analyzer -w packages/generator -w packages/cli",
     "dev": "npm run dev --workspaces --if-present",
-    "clean": "rm -rf packages/*/dist"
+    "clean": "rm -rf packages/*/dist",
+    "release": "node scripts/release.mjs"
   },
   "engines": {
     "node": ">=18"
