@@ -247,7 +247,7 @@ Your API key is **never sent anywhere except directly to the Anthropic API**. Al
 ## Contributing
 
 ```bash
-git clone https://github.com/kyritzb/open-auto-doc.git
+git clone https://github.com/Latent-Space-Labs/open-auto-doc.git
 cd open-auto-doc
 npm install
 npm run build

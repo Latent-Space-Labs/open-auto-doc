@@ -41,12 +41,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/kyritzb/open-auto-doc.git",
+    "url": "https://github.com/Latent-Space-Labs/open-auto-doc.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://github.com/kyritzb/open-auto-doc#readme",
+  "homepage": "https://github.com/Latent-Space-Labs/open-auto-doc#readme",
   "bugs": {
-    "url": "https://github.com/kyritzb/open-auto-doc/issues"
+    "url": "https://github.com/Latent-Space-Labs/open-auto-doc/issues"
   },
   "author": "kyritzb",
   "engines": {

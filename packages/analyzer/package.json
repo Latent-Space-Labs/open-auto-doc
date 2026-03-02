@@ -33,7 +33,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/kyritzb/open-auto-doc.git",
+    "url": "https://github.com/Latent-Space-Labs/open-auto-doc.git",
     "directory": "packages/analyzer"
   },
   "license": "MIT"
