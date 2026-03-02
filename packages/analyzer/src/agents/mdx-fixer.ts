@@ -68,7 +68,6 @@ Only edit files inside content/docs/.`,
     model,
     outputSchema: fixerOutputSchema,
     allowedTools: ["Read", "Glob", "Grep", "Edit"],
-    maxTurns: 20,
-    retryOnMaxTurns: false,
+    maxTurns: 35,
   });
 }

@@ -35,6 +35,35 @@ function truncateErrors(output: string, max = 8000): string {
   return output.slice(0, max) + "\n\n... (truncated)";
 }
 
+/** Extract the most relevant error lines from build output */
+function extractErrorSummary(output: string, maxLines = 30): string {
+  const lines = output.split("\n");
+  const errorLines: string[] = [];
+
+  for (const line of lines) {
+    // Capture lines with error indicators
+    if (
+      /error/i.test(line) ||
+      /failed/i.test(line) ||
+      /Error:|SyntaxError|TypeError|ReferenceError/i.test(line) ||
+      /at\s+/.test(line) ||
+      /Caused by:/.test(line) ||
+      /^\s*\d+\s*\|/.test(line) || // source line numbers from build output
+      /^\s*>/.test(line) ||        // pointer lines
+      /Expected|Unexpected|Invalid|Unterminated/i.test(line)
+    ) {
+      errorLines.push(line);
+    }
+  }
+
+  if (errorLines.length === 0) {
+    // Fallback: return last N lines
+    return lines.slice(-maxLines).join("\n");
+  }
+
+  return errorLines.slice(0, maxLines).join("\n");
+}
+
 export async function runBuildCheck(options: BuildCheckOptions): Promise<BuildCheckResult> {
   const { docsDir, apiKey, model, maxAttempts = 3 } = options;
 
@@ -49,8 +78,12 @@ export async function runBuildCheck(options: BuildCheckOptions): Promise<BuildCh
       return { success: true, attempts: attempt };
     }
 
+    // Always log the build errors so the user can see what's wrong
+    spinner.stop("Build errors detected");
+    const errorSummary = extractErrorSummary(output);
+    p.log.warn(`Build error output:\n${errorSummary}`);
+
     if (attempt >= maxAttempts) {
-      spinner.stop("Build check failed after all attempts");
       p.log.warn(
         "Documentation build has errors that could not be auto-fixed.\n" +
         "Your docs site may still work — some errors are non-fatal.\n" +
@@ -60,7 +93,7 @@ export async function runBuildCheck(options: BuildCheckOptions): Promise<BuildCh
     }
 
     // AI fix attempt
-    spinner.message(`Build errors detected — AI is diagnosing and fixing (attempt ${attempt}/${maxAttempts})...`);
+    spinner.start(`AI is diagnosing and fixing build errors (attempt ${attempt}/${maxAttempts})...`);
 
     try {
       const result = await fixMdxBuildErrors(
@@ -77,7 +110,7 @@ export async function runBuildCheck(options: BuildCheckOptions): Promise<BuildCh
         return { success: false, attempts: attempt, lastErrors: output };
       }
 
-      p.log.info(`Fixed ${result.filesChanged.length} file(s): ${result.summary}`);
+      spinner.stop(`Fixed ${result.filesChanged.length} file(s): ${result.summary}`);
       spinner.start("Re-verifying build...");
     } catch (err) {
       spinner.stop("AI fixer encountered an error");
