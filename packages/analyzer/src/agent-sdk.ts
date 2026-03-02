@@ -47,7 +47,7 @@ async function runAgentOnce<T>(options: AgentQueryOptions): Promise<T> {
     options: {
       systemPrompt: options.systemPrompt,
       cwd: options.cwd,
-      model: options.model || "claude-sonnet-4-20250514",
+      model: options.model || "claude-sonnet-4-6",
       allowedTools: options.allowedTools || ["Read", "Glob", "Grep"],
       maxTurns: options.maxTurns || 30,
       permissionMode: "bypassPermissions" as const,
