@@ -116,7 +116,9 @@ Based on the summaries above, identify:
 7. Shared conventions — common patterns, naming conventions, coding standards, or architectural patterns used across repos
 8. Generate a Mermaid \`graph TD\` system diagram showing all repos and their relationships
 
-Do NOT use file tools — all information is provided above.`,
+Do NOT use file tools — all information is provided above.
+
+IMPORTANT: Never use angle-bracket placeholders like <service-name> in your output. Use backtick-wrapped text instead: \`service-name\`. Angle brackets break MDX parsing.`,
     cwd: process.cwd(),
     apiKey,
     model,

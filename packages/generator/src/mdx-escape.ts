@@ -1,5 +1,5 @@
 /**
- * Escapes MDX-significant characters ({, }, <) that appear outside of
+ * Escapes MDX-significant characters ({, }, <, >) that appear outside of
  * fenced code blocks (``` ... ```) and inline code spans (` ... `).
  *
  * This prevents the Fumadocs MDX parser (micromark/acorn) from
@@ -11,12 +11,12 @@ export function escapeMdxOutsideCode(mdx: string): string {
   const len = mdx.length;
 
   while (i < len) {
-    // --- Fenced code block: ``` or more backticks at start of line ---
-    if (isStartOfLine(mdx, i) && mdx[i] === "`" && mdx[i + 1] === "`" && mdx[i + 2] === "`") {
+    // --- Fenced code block: ``` or more backticks (possibly indented) ---
+    if (mdx[i] === "`" && mdx[i + 1] === "`" && mdx[i + 2] === "`" && isStartOfLineOrIndented(mdx, i)) {
       const fenceLen = countBackticks(mdx, i);
-      const fence = mdx.slice(i, i + fenceLen);
 
-      // Copy the opening fence line (including info string)
+      // Copy the opening fence line (backticks + info string)
+      // Leading whitespace was already pushed to result char-by-char
       let j = i;
       while (j < len && mdx[j] !== "\n") j++;
       if (j < len) j++; // include the newline
@@ -24,7 +24,7 @@ export function escapeMdxOutsideCode(mdx: string): string {
       i = j;
 
       // Copy everything until closing fence or end of string
-      const closingFenceRegex = new RegExp(`^${"`".repeat(fenceLen)}\\s*$`, "m");
+      const closingFenceRegex = new RegExp(`^\\s*${"`".repeat(fenceLen)}\\s*$`, "m");
       let found = false;
       while (i < len) {
         // Check if current line is the closing fence
@@ -92,6 +92,8 @@ export function escapeMdxOutsideCode(mdx: string): string {
       result.push("\\}");
     } else if (ch === "<") {
       result.push("\\<");
+    } else if (ch === ">") {
+      result.push("\\>");
     } else {
       result.push(ch);
     }
@@ -101,8 +103,11 @@ export function escapeMdxOutsideCode(mdx: string): string {
   return result.join("");
 }
 
-function isStartOfLine(str: string, pos: number): boolean {
-  return pos === 0 || str[pos - 1] === "\n";
+function isStartOfLineOrIndented(str: string, pos: number): boolean {
+  // Walk backward from pos to find start of line, allowing only spaces/tabs
+  let j = pos - 1;
+  while (j >= 0 && (str[j] === " " || str[j] === "\t")) j--;
+  return j < 0 || str[j] === "\n";
 }
 
 function countBackticks(str: string, pos: number): number {

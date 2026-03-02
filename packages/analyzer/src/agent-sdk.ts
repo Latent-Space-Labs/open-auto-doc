@@ -30,7 +30,11 @@ export const EFFICIENCY_HINTS = `
 ## Efficiency Guidelines
 - Be selective: read at most 15-20 key files. Prioritize producing output over exhaustive exploration.
 - Focus on the most important/representative files rather than reading every file.
-- If you have enough information to produce a good result, stop exploring and produce output.`;
+- If you have enough information to produce a good result, stop exploring and produce output.
+
+## Output Formatting Rules
+- NEVER use angle-bracket placeholders like <your-api-key> or <repository-url> in your output. Use backtick-wrapped text instead: \`your-api-key\`, \`repository-url\`. Angle brackets break MDX parsing.
+- When including code examples with triple backticks, ensure the opening and closing fence markers start at column 0 (no leading spaces before the backtick fence).`;
 
 const FILLER_PATTERNS = /^(let me|i'll|i need to|i want to|i should|i will|now i'll|now let me|now i need|first,? i|next,? i|okay|alright)/i;
 
