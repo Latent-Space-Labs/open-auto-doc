@@ -1,6 +1,6 @@
 {
   "name": "@latent-space-labs/auto-doc-analyzer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "AI code analysis engine for open-auto-doc",
   "type": "module",
   "main": "./dist/index.js",
