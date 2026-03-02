@@ -1,6 +1,6 @@
 import fs from "fs-extra";
 import path from "node:path";
-import type { AnalysisResult } from "./types.js";
+import type { AnalysisResult, CrossRepoAnalysis } from "./types.js";
 
 interface MetaJson {
   title?: string;
@@ -10,14 +10,17 @@ interface MetaJson {
 export async function writeMeta(
   contentDir: string,
   results: AnalysisResult[],
+  crossRepo?: CrossRepoAnalysis,
 ): Promise<void> {
   if (results.length === 1) {
     await writeRepoMeta(contentDir, results[0]);
   } else {
-    // Root meta listing index + all repos
-    const rootMeta: MetaJson = {
-      pages: ["index", ...results.map((r) => slugify(r.repoName))],
-    };
+    // Root meta listing index + cross-repo + all repos
+    const pages: string[] = ["index"];
+    if (crossRepo) pages.push("cross-repo");
+    pages.push(...results.map((r) => slugify(r.repoName)));
+
+    const rootMeta: MetaJson = { pages };
     await fs.writeFile(
       path.join(contentDir, "meta.json"),
       JSON.stringify(rootMeta, null, 2),
@@ -37,6 +40,7 @@ async function writeRepoMeta(dir: string, result: AnalysisResult): Promise<void>
   if (result.apiEndpoints.length > 0) pages.push("api");
   if (result.components.length > 0) pages.push("components");
   if (result.dataModels.length > 0) pages.push("data-models");
+  if (result.diagrams && result.diagrams.length > 0) pages.push("diagrams");
 
   const meta: MetaJson = {
     title: result.repoName,

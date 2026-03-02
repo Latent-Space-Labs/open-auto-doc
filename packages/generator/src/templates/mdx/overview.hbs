@@ -59,3 +59,18 @@ description: "Architecture overview and documentation for {{repoName}}"
 | API Endpoints | {{apiEndpointCount}} |
 | Components | {{componentCount}} |
 | Data Models | {{dataModelCount}} |
+
+{{#if diagrams.length}}
+## Diagrams
+
+{{#each diagrams}}
+### {{this.title}}
+
+{{this.description}}
+
+```mermaid
+{{{this.mermaidSyntax}}}
+```
+
+{{/each}}
+{{/if}}

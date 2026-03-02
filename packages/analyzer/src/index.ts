@@ -1,20 +1,26 @@
 export { analyzeRepository } from "./pipeline.js";
-export { AnthropicProvider } from "./providers/anthropic.js";
+export { analyzeCrossRepos } from "./agents/cross-repo.js";
 export type {
-  AIProvider,
   AnalysisResult,
   AnalyzerOptions,
+  ApiContract,
   ApiEndpoint,
   ArchitectureOverview,
   ComponentDoc,
+  CrossRepoAnalysis,
   DataModelDoc,
-  GettingStartedGuide,
-  StaticAnalysis,
-  FileNode,
   DependencyInfo,
   ClaudeMdContent,
+  FieldDoc,
+  FileNode,
+  GettingStartedGuide,
+  ImportEdge,
+  ImportGraph,
+  MermaidDiagram,
+  ModuleCluster,
   ModuleInfo,
   ParameterDoc,
   PropDoc,
-  FieldDoc,
+  RepoRelationship,
+  StaticAnalysis,
 } from "./types.js";

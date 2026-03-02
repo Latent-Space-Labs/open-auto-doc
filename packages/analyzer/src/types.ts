@@ -19,6 +19,24 @@ export interface ClaudeMdContent {
   content: string;
 }
 
+export interface ImportEdge {
+  from: string;
+  to: string;
+  isExternal: boolean;
+}
+
+export interface ModuleCluster {
+  name: string;
+  files: string[];
+  internalEdgeCount: number;
+  externalEdgeCount: number;
+}
+
+export interface ImportGraph {
+  edges: ImportEdge[];
+  moduleClusters: ModuleCluster[];
+}
+
 export interface StaticAnalysis {
   fileTree: FileNode;
   languages: string[];
@@ -26,6 +44,14 @@ export interface StaticAnalysis {
   claudeMd: ClaudeMdContent[];
   entryFiles: string[];
   totalFiles: number;
+  importGraph?: ImportGraph;
+}
+
+export interface MermaidDiagram {
+  id: string;
+  title: string;
+  description: string;
+  mermaidSyntax: string;
 }
 
 export interface ArchitectureOverview {
@@ -35,6 +61,7 @@ export interface ArchitectureOverview {
   dataFlow: string;
   entryPoints: string[];
   keyPatterns: string[];
+  diagrams: MermaidDiagram[];
 }
 
 export interface ModuleInfo {
@@ -111,16 +138,39 @@ export interface AnalysisResult {
   components: ComponentDoc[];
   dataModels: DataModelDoc[];
   gettingStarted: GettingStartedGuide;
+  diagrams: MermaidDiagram[];
 }
 
-export interface AIProvider {
-  chat(systemPrompt: string, userPrompt: string): Promise<string>;
+export interface ApiContract {
+  consumerRepo: string;
+  providerRepo: string;
+  endpoint: string;
+  method: string;
+  description: string;
+}
+
+export interface RepoRelationship {
+  from: string;
+  to: string;
+  relationshipType: string;
+  description: string;
+}
+
+export interface CrossRepoAnalysis {
+  summary: string;
+  sharedDependencies: string[];
+  techStackOverlap: string[];
+  apiContracts: ApiContract[];
+  repoRelationships: RepoRelationship[];
+  diagrams: MermaidDiagram[];
 }
 
 export interface AnalyzerOptions {
   repoPath: string;
   repoName: string;
   repoUrl: string;
-  provider: AIProvider;
+  apiKey: string;
+  model?: string;
   onProgress?: (stage: string, message: string) => void;
+  onAgentMessage?: (text: string) => void;
 }

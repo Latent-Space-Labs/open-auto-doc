@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { getAnthropicKey, getGithubToken } from "../auth/token-store.js";
 import { cloneRepo, cleanupClone, type ClonedRepo } from "../github/fetcher.js";
-import { analyzeRepository, AnthropicProvider } from "@open-auto-doc/analyzer";
-import type { AnalysisResult } from "@open-auto-doc/analyzer";
+import { analyzeRepository, analyzeCrossRepos } from "@open-auto-doc/analyzer";
+import type { AnalysisResult, CrossRepoAnalysis } from "@open-auto-doc/analyzer";
 import { writeContent, writeMeta } from "@open-auto-doc/generator";
 
 interface AutodocConfig {
@@ -41,7 +41,6 @@ export async function generateCommand() {
     process.exit(1);
   }
 
-  const provider = new AnthropicProvider(apiKey);
   const results: AnalysisResult[] = [];
   const clones: ClonedRepo[] = [];
 
@@ -68,9 +67,12 @@ export async function generateCommand() {
         repoPath: cloned.localPath,
         repoName: repo.name,
         repoUrl: repo.htmlUrl,
-        provider,
+        apiKey,
         onProgress: (_stage, message) => {
           spinner.message(message);
+        },
+        onAgentMessage: (text) => {
+          spinner.message(text);
         },
       });
       results.push(result);
@@ -81,9 +83,23 @@ export async function generateCommand() {
   }
 
   if (results.length > 0) {
+    // Cross-repo analysis (multi-repo only)
+    let crossRepo: CrossRepoAnalysis | undefined;
+    if (results.length > 1) {
+      const crossSpinner = p.spinner();
+      crossSpinner.start("Analyzing cross-repository relationships...");
+      try {
+        crossRepo = await analyzeCrossRepos(results, apiKey);
+        crossSpinner.stop(`Cross-repo analysis complete — ${crossRepo.repoRelationships.length} relationships found`);
+      } catch (err) {
+        crossSpinner.stop("Cross-repo analysis failed (non-fatal)");
+        p.log.warn(`Cross-repo error: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
     const contentDir = path.join(config.outputDir, "content", "docs");
-    await writeContent(contentDir, results);
-    await writeMeta(contentDir, results);
+    await writeContent(contentDir, results, crossRepo);
+    await writeMeta(contentDir, results, crossRepo);
     p.log.success("Documentation regenerated!");
   }
 

@@ -1,93 +1,88 @@
-import fs from "node:fs";
-import path from "node:path";
-import type { AIProvider, ArchitectureOverview, DataModelDoc, StaticAnalysis } from "../types.js";
+import type { ArchitectureOverview, DataModelDoc, MermaidDiagram, StaticAnalysis } from "../types.js";
+import { runAgent } from "../agent-sdk.js";
 
-const MODEL_FILE_PATTERNS = [
-  /models?\//i,
-  /schemas?\//i,
-  /entities?\//i,
-  /types?\//i,
-  /\.model\.\w+$/,
-  /\.schema\.\w+$/,
-  /\.entity\.\w+$/,
-  /prisma\/schema\.prisma$/,
-  /migrations?\//i,
-];
+interface ModelAnalysisResult {
+  models: DataModelDoc[];
+  diagram?: MermaidDiagram;
+}
+
+const modelOutputSchema = {
+  type: "object",
+  properties: {
+    models: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          filePath: { type: "string" },
+          fields: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                type: { type: "string" },
+                description: { type: "string" },
+                constraints: { type: "array", items: { type: "string" } },
+              },
+              required: ["name", "type", "description"],
+            },
+          },
+          relationships: { type: "array", items: { type: "string" } },
+        },
+        required: ["name", "description", "filePath", "fields", "relationships"],
+      },
+    },
+    diagram: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        mermaidSyntax: { type: "string" },
+      },
+      required: ["id", "title", "description", "mermaidSyntax"],
+    },
+  },
+  required: ["models"],
+};
 
 export async function analyzeDataModels(
   repoPath: string,
   staticAnalysis: StaticAnalysis,
   architecture: ArchitectureOverview,
-  provider: AIProvider,
-): Promise<DataModelDoc[]> {
-  const modelFiles = findModelFiles(staticAnalysis);
-  if (modelFiles.length === 0) return [];
-
-  const fileContents = modelFiles
-    .slice(0, 15)
-    .map((f) => {
-      try {
-        const content = fs.readFileSync(path.join(repoPath, f), "utf-8");
-        return `--- ${f} ---\n${content.slice(0, 4000)}`;
-      } catch {
-        return "";
-      }
-    })
-    .filter(Boolean)
-    .join("\n\n");
-
+  apiKey: string,
+  model?: string,
+  onAgentMessage?: (text: string) => void,
+): Promise<ModelAnalysisResult> {
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
 
-  const systemPrompt = `You are a data modeling documentation expert. Analyze source code and extract data model documentation.
-Always respond with valid JSON. No markdown outside the JSON.`;
+  return runAgent<ModelAnalysisResult>({
+    onAgentMessage,
+    systemPrompt: `You are a data modeling documentation expert. Analyze source code and extract data model documentation.
+Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
+    prompt: `Find and document all data models in this codebase.
 
-  const userPrompt = `Analyze these model/schema files and document the data models.
-
-## Project Context
+## Context
 ${architecture.summary}
 Tech Stack: ${architecture.techStack.join(", ")}
+${claudeMdContext ? `\n## CLAUDE.md Context\n${claudeMdContext}\n` : ""}
 
-${claudeMdContext ? `## CLAUDE.md Context\n${claudeMdContext}\n` : ""}
+## Instructions
+Use Glob to find model/schema/entity files (e.g. **/models/**, **/schemas/**, **/entities/**, **/*.model.*, **/*.schema.*, prisma/schema.prisma).
+Use Grep to search for class/interface/type definitions, ORM decorators, schema definitions.
+Use Read to examine each file and extract model details.
 
-## Model Files
-${fileContents}
+For each model, document: name, description, filePath, fields (name, type, description, constraints), relationships.
 
-Respond with a JSON array of data models:
-[
-  {
-    "name": "ModelName",
-    "description": "What this model represents",
-    "filePath": "path/to/model.ts",
-    "fields": [
-      {
-        "name": "fieldName",
-        "type": "string",
-        "description": "What this field represents",
-        "constraints": ["required", "unique"]
-      }
-    ],
-    "relationships": ["Relates to OtherModel via foreignKey"]
-  }
-]
-
-If no data models found, return an empty array [].`;
-
-  const response = await provider.chat(systemPrompt, userPrompt);
-  try {
-    const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-    return JSON.parse(jsonMatch[0]) as DataModelDoc[];
-  } catch {
-    return [];
-  }
-}
-
-function findModelFiles(staticAnalysis: StaticAnalysis): string[] {
-  const flatFiles = getAllFiles(staticAnalysis.fileTree);
-  return flatFiles.filter((f) => MODEL_FILE_PATTERNS.some((p) => p.test(f)));
-}
-
-function getAllFiles(node: { path: string; type: string; children?: typeof node[] }): string[] {
-  if (node.type === "file") return [node.path];
-  return (node.children || []).flatMap(getAllFiles);
+Also generate a Mermaid \`erDiagram\` showing entity relationships between the main data models.
+If no models are found, set the diagram to null and return an empty models array.`,
+    cwd: repoPath,
+    apiKey,
+    model,
+    outputSchema: modelOutputSchema,
+    maxTurns: 25,
+  });
 }

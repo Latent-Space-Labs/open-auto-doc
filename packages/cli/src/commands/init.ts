@@ -11,8 +11,8 @@ import {
 } from "../auth/token-store.js";
 import { cloneRepo, cleanupClone, type ClonedRepo } from "../github/fetcher.js";
 import { pickRepos } from "../github/repo-picker.js";
-import { analyzeRepository, AnthropicProvider } from "@open-auto-doc/analyzer";
-import type { AnalysisResult } from "@open-auto-doc/analyzer";
+import { analyzeRepository, analyzeCrossRepos } from "@open-auto-doc/analyzer";
+import type { AnalysisResult, CrossRepoAnalysis } from "@open-auto-doc/analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@open-auto-doc/generator";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,7 +64,6 @@ export async function initCommand(options: { output?: string }) {
   }
 
   // Step 4: Clone and analyze repos
-  const provider = new AnthropicProvider(apiKey);
   const results: AnalysisResult[] = [];
   const clones: ClonedRepo[] = [];
 
@@ -89,14 +88,17 @@ export async function initCommand(options: { output?: string }) {
         repoPath: cloned.localPath,
         repoName: repo.name,
         repoUrl: repo.htmlUrl,
-        provider,
+        apiKey,
         onProgress: (stage, message) => {
           spinner.stop(`[${repo.name}] ${message}`);
           spinner.start(`Analyzing ${repo.name} — ${stage}...`);
         },
+        onAgentMessage: (text) => {
+          spinner.message(text);
+        },
       });
       results.push(result);
-      spinner.stop(`Analyzed ${repo.name} — ${result.apiEndpoints.length} endpoints, ${result.components.length} components, ${result.dataModels.length} models`);
+      spinner.stop(`Analyzed ${repo.name} — ${result.apiEndpoints.length} endpoints, ${result.components.length} components, ${result.dataModels.length} models, ${result.diagrams.length} diagrams`);
     } catch (err) {
       spinner.stop(`Failed to analyze ${repo.name}`);
       p.log.error(`Analysis error: ${err instanceof Error ? err.message : err}`);
@@ -107,6 +109,20 @@ export async function initCommand(options: { output?: string }) {
     p.log.error("No repositories were successfully analyzed.");
     cleanup(clones);
     process.exit(1);
+  }
+
+  // Step 4b: Cross-repo analysis (multi-repo only)
+  let crossRepo: CrossRepoAnalysis | undefined;
+  if (results.length > 1) {
+    const crossSpinner = p.spinner();
+    crossSpinner.start("Analyzing cross-repository relationships...");
+    try {
+      crossRepo = await analyzeCrossRepos(results, apiKey);
+      crossSpinner.stop(`Cross-repo analysis complete — ${crossRepo.repoRelationships.length} relationships found`);
+    } catch (err) {
+      crossSpinner.stop("Cross-repo analysis failed (non-fatal)");
+      p.log.warn(`Cross-repo error: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   // Step 5: Generate docs site
@@ -133,8 +149,8 @@ export async function initCommand(options: { output?: string }) {
   try {
     genSpinner.start("Writing documentation content...");
     const contentDir = path.join(outputDir, "content", "docs");
-    await writeContent(contentDir, results);
-    await writeMeta(contentDir, results);
+    await writeContent(contentDir, results, crossRepo);
+    await writeMeta(contentDir, results, crossRepo);
     genSpinner.stop("Documentation content written");
   } catch (err) {
     genSpinner.stop("Content writing failed");

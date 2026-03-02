@@ -2,7 +2,7 @@ import fs from "fs-extra";
 import path from "node:path";
 import Handlebars from "handlebars";
 import { fileURLToPath } from "node:url";
-import type { AnalysisResult } from "./types.js";
+import type { AnalysisResult, CrossRepoAnalysis } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +40,7 @@ function loadTemplates() {
     );
   }
 
-  const templateFiles = ["overview", "getting-started", "api-endpoint", "component", "data-model"];
+  const templateFiles = ["overview", "getting-started", "api-endpoint", "component", "data-model", "diagrams", "cross-repo"];
   for (const name of templateFiles) {
     const filePath = path.join(templateDir, `${name}.hbs`);
     if (fs.existsSync(filePath)) {
@@ -56,6 +56,7 @@ function loadTemplates() {
 export async function writeContent(
   contentDir: string,
   results: AnalysisResult[],
+  crossRepo?: CrossRepoAnalysis,
 ): Promise<void> {
   loadTemplates();
 
@@ -68,6 +69,14 @@ export async function writeContent(
     // Multiple repos — each in its own subdirectory
     // Write a root index that links to all repos
     await writeMultiRepoIndex(contentDir, results);
+
+    // Write cross-repo analysis page
+    if (crossRepo && templates["cross-repo"]) {
+      await fs.writeFile(
+        path.join(contentDir, "cross-repo.mdx"),
+        renderTemplate("cross-repo", crossRepo),
+      );
+    }
 
     for (const result of results) {
       const repoDir = path.join(contentDir, slugify(result.repoName));
@@ -154,6 +163,14 @@ async function writeRepoContent(dir: string, result: AnalysisResult): Promise<vo
     await fs.writeFile(
       path.join(modelDir, "index.mdx"),
       renderTemplate("data-model", { ...safeResult, models: safeResult.dataModels }),
+    );
+  }
+
+  // Diagrams
+  if (safeResult.diagrams && safeResult.diagrams.length > 0 && templates["diagrams"]) {
+    await fs.writeFile(
+      path.join(dir, "diagrams.mdx"),
+      renderTemplate("diagrams", safeResult),
     );
   }
 }

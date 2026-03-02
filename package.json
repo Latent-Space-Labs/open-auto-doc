@@ -2,7 +2,9 @@
   "name": "open-auto-doc-monorepo",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/analyzer",
+    "packages/generator",
+    "packages/cli"
   ],
   "scripts": {
     "build": "npm run build -w packages/analyzer -w packages/generator -w packages/cli",

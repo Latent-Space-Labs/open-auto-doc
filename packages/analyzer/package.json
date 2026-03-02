@@ -19,8 +19,9 @@
     "dev": "tsup --watch"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "ignore": "^7.0.3"
+    "@anthropic-ai/claude-agent-sdk": "^0.2.63",
+    "ignore": "^7.0.3",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "tsup": "^8.4.0",

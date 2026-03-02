@@ -1,0 +1,19 @@
+---
+title: "{{repoName}} Diagrams"
+description: "Architecture and system diagrams for {{repoName}}"
+---
+
+# Diagrams
+
+Visual diagrams showing the architecture and data flow of {{repoName}}.
+
+{{#each diagrams}}
+## {{this.title}}
+
+{{this.description}}
+
+```mermaid
+{{{this.mermaidSyntax}}}
+```
+
+{{/each}}

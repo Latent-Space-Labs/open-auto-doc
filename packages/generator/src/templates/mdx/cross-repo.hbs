@@ -1,0 +1,63 @@
+---
+title: "System Overview"
+description: "Cross-repository analysis and system architecture"
+---
+
+# System Overview
+
+{{{summary}}}
+
+{{#if diagrams.length}}
+## System Architecture
+
+{{#each diagrams}}
+### {{this.title}}
+
+{{this.description}}
+
+```mermaid
+{{{this.mermaidSyntax}}}
+```
+
+{{/each}}
+{{/if}}
+
+{{#if sharedDependencies.length}}
+## Shared Dependencies
+
+Dependencies used across multiple repositories:
+
+| Dependency |
+|-----------|
+{{#each sharedDependencies}}
+| {{this}} |
+{{/each}}
+{{/if}}
+
+{{#if techStackOverlap.length}}
+## Technology Stack Overlap
+
+Technologies shared across repositories:
+
+{{#each techStackOverlap}}
+- {{this}}
+{{/each}}
+{{/if}}
+
+{{#if apiContracts.length}}
+## API Contracts
+
+| Consumer | Provider | Method | Endpoint | Description |
+|----------|----------|--------|----------|-------------|
+{{#each apiContracts}}
+| {{this.consumerRepo}} | {{this.providerRepo}} | {{this.method}} | `{{this.endpoint}}` | {{this.description}} |
+{{/each}}
+{{/if}}
+
+{{#if repoRelationships.length}}
+## Repository Relationships
+
+{{#each repoRelationships}}
+- **{{this.from}}** → **{{this.to}}** ({{this.relationshipType}}): {{this.description}}
+{{/each}}
+{{/if}}

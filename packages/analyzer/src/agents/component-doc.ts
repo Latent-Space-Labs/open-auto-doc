@@ -1,91 +1,78 @@
-import fs from "node:fs";
-import path from "node:path";
-import type { AIProvider, ArchitectureOverview, ComponentDoc, StaticAnalysis } from "../types.js";
+import type { ArchitectureOverview, ComponentDoc, StaticAnalysis } from "../types.js";
+import { runAgent } from "../agent-sdk.js";
 
-const COMPONENT_FILE_PATTERNS = [
-  /components?\//i,
-  /\.component\.\w+$/,
-  /\.vue$/,
-  /\.svelte$/,
-  /src\/.*\.tsx$/,
-];
+interface ComponentAnalysisResult {
+  components: ComponentDoc[];
+}
+
+const componentOutputSchema = {
+  type: "object",
+  properties: {
+    components: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          filePath: { type: "string" },
+          props: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                type: { type: "string" },
+                required: { type: "boolean" },
+                defaultValue: { type: "string" },
+                description: { type: "string" },
+              },
+              required: ["name", "type", "required", "description"],
+            },
+          },
+          usage: { type: "string" },
+          category: { type: "string" },
+        },
+        required: ["name", "description", "filePath", "props", "usage"],
+      },
+    },
+  },
+  required: ["components"],
+};
 
 export async function analyzeComponents(
   repoPath: string,
   staticAnalysis: StaticAnalysis,
   architecture: ArchitectureOverview,
-  provider: AIProvider,
+  apiKey: string,
+  model?: string,
+  onAgentMessage?: (text: string) => void,
 ): Promise<ComponentDoc[]> {
-  const componentFiles = findComponentFiles(staticAnalysis);
-  if (componentFiles.length === 0) return [];
-
-  const fileContents = componentFiles
-    .slice(0, 15)
-    .map((f) => {
-      try {
-        const content = fs.readFileSync(path.join(repoPath, f), "utf-8");
-        return `--- ${f} ---\n${content.slice(0, 4000)}`;
-      } catch {
-        return "";
-      }
-    })
-    .filter(Boolean)
-    .join("\n\n");
-
   const claudeMdContext = staticAnalysis.claudeMd.map((c) => c.content).join("\n\n");
 
-  const systemPrompt = `You are a UI component documentation expert. Analyze source code and extract component documentation.
-Always respond with valid JSON. No markdown outside the JSON.`;
+  const result = await runAgent<ComponentAnalysisResult>({
+    onAgentMessage,
+    systemPrompt: `You are a UI component documentation expert. Analyze source code and extract component documentation.
+Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
+    prompt: `Find and document all UI components in this codebase.
 
-  const userPrompt = `Analyze these component files and document the UI components.
-
-## Project Context
+## Context
 ${architecture.summary}
 Tech Stack: ${architecture.techStack.join(", ")}
+${claudeMdContext ? `\n## CLAUDE.md Context\n${claudeMdContext}\n` : ""}
 
-${claudeMdContext ? `## CLAUDE.md Context\n${claudeMdContext}\n` : ""}
+## Instructions
+Use Glob to find component files (e.g. **/components/**, **/*.component.*, **/*.vue, **/*.svelte, src/**/*.tsx).
+Use Read to examine each file and extract component details.
 
-## Component Files
-${fileContents}
+For each component, document: name, description, filePath, props (name, type, required, defaultValue, description), usage example code, category.
+If no UI components are found, return an empty components array.`,
+    cwd: repoPath,
+    apiKey,
+    model,
+    outputSchema: componentOutputSchema,
+    maxTurns: 25,
+  });
 
-Respond with a JSON array of components:
-[
-  {
-    "name": "ComponentName",
-    "description": "What this component does and when to use it",
-    "filePath": "path/to/component.tsx",
-    "props": [
-      {
-        "name": "propName",
-        "type": "string",
-        "required": true,
-        "defaultValue": "optional default",
-        "description": "What this prop does"
-      }
-    ],
-    "usage": "Example usage code snippet",
-    "category": "Optional category like Layout, Form, Navigation"
-  }
-]
-
-If no UI components found, return an empty array [].`;
-
-  const response = await provider.chat(systemPrompt, userPrompt);
-  try {
-    const jsonMatch = response.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return [];
-    return JSON.parse(jsonMatch[0]) as ComponentDoc[];
-  } catch {
-    return [];
-  }
-}
-
-function findComponentFiles(staticAnalysis: StaticAnalysis): string[] {
-  const flatFiles = getAllFiles(staticAnalysis.fileTree);
-  return flatFiles.filter((f) => COMPONENT_FILE_PATTERNS.some((p) => p.test(f)));
-}
-
-function getAllFiles(node: { path: string; type: string; children?: typeof node[] }): string[] {
-  if (node.type === "file") return [node.path];
-  return (node.children || []).flatMap(getAllFiles);
+  return result.components;
 }

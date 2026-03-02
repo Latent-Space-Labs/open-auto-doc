@@ -4,7 +4,9 @@ export type {
   ApiEndpoint,
   ArchitectureOverview,
   ComponentDoc,
+  CrossRepoAnalysis,
   DataModelDoc,
   GettingStartedGuide,
+  MermaidDiagram,
   StaticAnalysis,
 } from "@open-auto-doc/analyzer";
