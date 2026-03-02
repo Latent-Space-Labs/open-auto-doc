@@ -24,6 +24,7 @@ program
   .description("Regenerate documentation using existing configuration")
   .option("--incremental", "Only re-analyze changed files (uses cached results)")
   .option("--force", "Force full regeneration (ignore cache)")
+  .option("--repo <name>", "Only analyze this repo (uses cache for others)")
   .action(generateCommand);
 
 program

@@ -1,0 +1,229 @@
+import * as p from "@clack/prompts";
+import { execSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { Octokit } from "@octokit/rest";
+import type { AutodocConfig } from "../config.js";
+import { saveConfig } from "../config.js";
+
+export interface DeployResult {
+  repoUrl: string;
+  owner: string;
+  repoName: string;
+}
+
+function exec(cmd: string, cwd?: string): string {
+  return execSync(cmd, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+}
+
+function getGitHubUsername(octokit: Octokit): Promise<string> {
+  return octokit.rest.users.getAuthenticated().then((res) => res.data.login);
+}
+
+/**
+ * Creates a new GitHub repo for docs, initializes git, and pushes.
+ * Returns deploy result or null if the user cancels.
+ */
+export async function createAndPushDocsRepo(params: {
+  token: string;
+  docsDir: string;
+  config: AutodocConfig;
+}): Promise<DeployResult | null> {
+  const { token, docsDir, config } = params;
+  const octokit = new Octokit({ auth: token });
+  const username = await getGitHubUsername(octokit);
+
+  // Fetch user's organizations
+  let orgs: Array<{ login: string }> = [];
+  try {
+    const { data } = await octokit.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
+    orgs = data;
+  } catch {
+    // If we can't fetch orgs, just offer personal account
+  }
+
+  // Let user pick owner (personal account or org)
+  const ownerOptions = [
+    { value: username, label: username, hint: "Personal account" },
+    ...orgs.map((org) => ({ value: org.login, label: org.login, hint: "Organization" })),
+  ];
+
+  let owner = username;
+  if (ownerOptions.length > 1) {
+    const selected = await p.select({
+      message: "Where should the docs repo be created?",
+      options: ownerOptions,
+    });
+
+    if (p.isCancel(selected)) return null;
+    owner = selected as string;
+  }
+
+  const isOrg = owner !== username;
+  const defaultName = config?.repos?.[0]
+    ? `${config.repos[0].name}-docs`
+    : "my-project-docs";
+
+  const repoName = await p.text({
+    message: "Name for the docs GitHub repo:",
+    initialValue: defaultName,
+    validate: (v) => {
+      if (!v || v.length === 0) return "Repo name is required";
+      if (!/^[a-zA-Z0-9._-]+$/.test(v)) return "Invalid repo name";
+    },
+  });
+
+  if (p.isCancel(repoName)) return null;
+
+  const visibility = await p.select({
+    message: "Repository visibility:",
+    options: [
+      { value: "public", label: "Public" },
+      { value: "private", label: "Private" },
+    ],
+  });
+
+  if (p.isCancel(visibility)) return null;
+
+  const spinner = p.spinner();
+
+  // Create GitHub repo (under personal account or org)
+  spinner.start(`Creating GitHub repo ${owner}/${repoName}...`);
+  let repoUrl: string;
+  try {
+    if (isOrg) {
+      const { data } = await octokit.rest.repos.createInOrg({
+        org: owner,
+        name: repoName as string,
+        private: visibility === "private",
+        description: "Auto-generated documentation site",
+        auto_init: false,
+      });
+      repoUrl = data.clone_url;
+      spinner.stop(`Created ${data.full_name}`);
+    } else {
+      const { data } = await octokit.rest.repos.createForAuthenticatedUser({
+        name: repoName as string,
+        private: visibility === "private",
+        description: "Auto-generated documentation site",
+        auto_init: false,
+      });
+      repoUrl = data.clone_url;
+      spinner.stop(`Created ${data.full_name}`);
+    }
+  } catch (err: any) {
+    spinner.stop("Failed to create repo.");
+    if (err?.status === 422) {
+      p.log.error(`Repository "${repoName}" already exists. Choose a different name or delete it first.`);
+    } else {
+      p.log.error(`GitHub API error: ${err?.message || err}`);
+    }
+    return null;
+  }
+
+  // Initialize git and push
+  spinner.start("Pushing docs to GitHub...");
+  try {
+    // Ensure .gitignore exists
+    const gitignorePath = path.join(docsDir, ".gitignore");
+    if (!fs.existsSync(gitignorePath)) {
+      fs.writeFileSync(gitignorePath, "node_modules/\n.next/\n.source/\n");
+    }
+
+    // Init, add, commit, push
+    if (!fs.existsSync(path.join(docsDir, ".git"))) {
+      exec("git init -b main", docsDir);
+    }
+
+    exec("git add -A", docsDir);
+    exec('git commit -m "Initial documentation site"', docsDir);
+
+    // Set remote (remove first if exists)
+    try {
+      exec("git remote remove origin", docsDir);
+    } catch {
+      // No existing remote
+    }
+
+    const pushUrl = repoUrl.replace("https://", `https://${token}@`);
+    exec(`git remote add origin ${pushUrl}`, docsDir);
+    exec("git push -u origin main", docsDir);
+
+    // Replace authenticated URL with clean URL for storage
+    exec("git remote set-url origin " + repoUrl, docsDir);
+
+    spinner.stop("Pushed to GitHub.");
+  } catch (err) {
+    spinner.stop("Git push failed.");
+    p.log.error(`${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+
+  // Save docsRepo to config
+  const updatedConfig: AutodocConfig = { ...config };
+  updatedConfig.docsRepo = repoUrl;
+  saveConfig(updatedConfig);
+
+  return { repoUrl, owner, repoName: repoName as string };
+}
+
+/**
+ * Pushes updates to an existing docs repo.
+ * Returns true if pushed successfully, false if no changes or failure.
+ */
+export async function pushUpdates(params: {
+  token: string;
+  docsDir: string;
+  docsRepo: string;
+}): Promise<boolean> {
+  const { token, docsDir, docsRepo } = params;
+
+  const spinner = p.spinner();
+  spinner.start("Pushing updates to docs repo...");
+
+  try {
+    if (!fs.existsSync(path.join(docsDir, ".git"))) {
+      exec("git init", docsDir);
+      exec(`git remote add origin ${docsRepo}`, docsDir);
+    }
+
+    exec("git add -A", docsDir);
+
+    // Check if there are changes to commit
+    try {
+      exec("git diff --cached --quiet", docsDir);
+      spinner.stop("No changes to push.");
+      return false;
+    } catch {
+      // There are staged changes — continue
+    }
+
+    exec('git commit -m "Update documentation"', docsDir);
+    exec("git push -u origin main", docsDir);
+    spinner.stop("Pushed updates to docs repo.");
+    return true;
+  } catch (err) {
+    spinner.stop("Push failed.");
+    p.log.error(`${err instanceof Error ? err.message : err}`);
+    return false;
+  }
+}
+
+/**
+ * Prints the Vercel setup instructions note.
+ */
+export function showVercelInstructions(owner: string, repoName: string) {
+  p.note(
+    [
+      "Connect your docs repo to Vercel for automatic deployments:",
+      "",
+      "  1. Go to https://vercel.com/new",
+      "  2. Click 'Import Git Repository'",
+      `  3. Select '${owner}/${repoName}'`,
+      "  4. Click 'Deploy'",
+      "",
+      "Once connected, Vercel will auto-deploy on every push to the docs repo.",
+    ].join("\n"),
+    "Vercel Setup",
+  );
+}

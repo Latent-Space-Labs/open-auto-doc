@@ -1,8 +1,8 @@
 import * as p from "@clack/prompts";
-import fs from "node:fs";
 import path from "node:path";
 import { getAnthropicKey, getGithubToken } from "../auth/token-store.js";
 import { cloneRepo, cleanupClone, type ClonedRepo } from "../github/fetcher.js";
+import { loadConfig } from "../config.js";
 import {
   analyzeRepository,
   analyzeRepositoryIncremental,
@@ -14,35 +14,20 @@ import {
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 
-interface AutodocConfig {
-  repos: Array<{
-    name: string;
-    fullName: string;
-    cloneUrl: string;
-    htmlUrl: string;
-  }>;
-  outputDir: string;
-}
-
 interface GenerateOptions {
   incremental?: boolean;
   force?: boolean;
+  repo?: string;
 }
 
 export async function generateCommand(options: GenerateOptions) {
   p.intro("open-auto-doc — Regenerating documentation");
 
-  // Look for .autodocrc.json in CWD, then in docs-site/
-  let configPath = path.resolve(".autodocrc.json");
-  if (!fs.existsSync(configPath)) {
-    configPath = path.resolve("docs-site", ".autodocrc.json");
-  }
-  if (!fs.existsSync(configPath)) {
+  const config = loadConfig();
+  if (!config) {
     p.log.error("No .autodocrc.json found. Run `open-auto-doc init` first.");
     process.exit(1);
   }
-
-  const config: AutodocConfig = JSON.parse(fs.readFileSync(configPath, "utf-8"));
   const token = getGithubToken();
   const apiKey = getAnthropicKey();
 
@@ -76,12 +61,38 @@ export async function generateCommand(options: GenerateOptions) {
   const incremental = options.incremental && !options.force;
   const cacheDir = path.join(config.outputDir, ".autodoc-cache");
 
-  // Phase 1: Clone all repos
+  // Determine which repos to analyze vs load from cache
+  const targetRepoName = options.repo;
+  let reposToAnalyze = config.repos;
+  const cachedResults: AnalysisResult[] = [];
+
+  if (targetRepoName) {
+    const targetRepo = config.repos.find((r) => r.name === targetRepoName);
+    if (!targetRepo) {
+      p.log.error(`Repo "${targetRepoName}" not found in config. Available: ${config.repos.map((r) => r.name).join(", ")}`);
+      process.exit(1);
+    }
+    reposToAnalyze = [targetRepo];
+
+    // Load cached results for all other repos
+    for (const repo of config.repos) {
+      if (repo.name === targetRepoName) continue;
+      const cached = loadCache(cacheDir, repo.name);
+      if (cached) {
+        cachedResults.push(cached.result);
+        p.log.info(`Using cached analysis for ${repo.name}`);
+      } else {
+        p.log.warn(`No cached analysis for ${repo.name} — its docs will be stale until it pushes`);
+      }
+    }
+  }
+
+  // Phase 1: Clone repos to analyze
   const cloneSpinner = p.spinner();
-  cloneSpinner.start(`Cloning ${config.repos.length} repositories...`);
+  cloneSpinner.start(`Cloning ${reposToAnalyze.length} ${reposToAnalyze.length === 1 ? "repository" : "repositories"}...`);
   const clones: ClonedRepo[] = [];
 
-  for (const repo of config.repos) {
+  for (const repo of reposToAnalyze) {
     cloneSpinner.message(`Cloning ${repo.name}...`);
     try {
       const cloned = cloneRepo(
@@ -100,14 +111,14 @@ export async function generateCommand(options: GenerateOptions) {
       p.log.warn(`Failed to clone ${repo.name}: ${err instanceof Error ? err.message : err}`);
     }
   }
-  cloneSpinner.stop(`Cloned ${clones.length}/${config.repos.length} repositories`);
+  cloneSpinner.stop(`Cloned ${clones.length}/${reposToAnalyze.length} ${reposToAnalyze.length === 1 ? "repository" : "repositories"}`);
 
   if (clones.length === 0) {
     p.log.error("No repositories were cloned.");
     process.exit(1);
   }
 
-  // Phase 2: Analyze all repos in parallel
+  // Phase 2: Analyze repos in parallel
   const analyzeSpinner = p.spinner();
   let completed = 0;
   const total = clones.length;
@@ -192,11 +203,14 @@ export async function generateCommand(options: GenerateOptions) {
   });
 
   const settled = await Promise.all(analysisPromises);
-  const results: AnalysisResult[] = settled
+  const freshResults: AnalysisResult[] = settled
     .filter((s) => s.result !== null)
     .map((s) => s.result!);
 
-  analyzeSpinner.stop(`Analyzed ${results.length}/${total} repositories`);
+  analyzeSpinner.stop(`Analyzed ${freshResults.length}/${total} ${total === 1 ? "repository" : "repositories"}`);
+
+  // Combine fresh results with cached results from other repos
+  const results: AnalysisResult[] = [...freshResults, ...cachedResults];
 
   if (results.length > 0) {
     // Phase 3: Cross-repo analysis (multi-repo only)

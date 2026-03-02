@@ -11,6 +11,10 @@ import {
 } from "../auth/token-store.js";
 import { cloneRepo, cleanupClone, type ClonedRepo } from "../github/fetcher.js";
 import { pickRepos } from "../github/repo-picker.js";
+import { saveConfig } from "../config.js";
+import type { AutodocConfig } from "../config.js";
+import { createAndPushDocsRepo, showVercelInstructions } from "../actions/deploy-action.js";
+import { getGitRoot, createCiWorkflow, showSecretsInstructions } from "../actions/setup-ci-action.js";
 import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
@@ -211,24 +215,18 @@ export async function initCommand(options: { output?: string }) {
     process.exit(1);
   }
 
-  // Save config for regeneration (in both outputDir and CWD)
+  // Save config for regeneration
+  const config: AutodocConfig = {
+    repos: repos.map((r) => ({
+      name: r.name,
+      fullName: r.fullName,
+      cloneUrl: r.cloneUrl,
+      htmlUrl: r.htmlUrl,
+    })),
+    outputDir,
+  };
   try {
-    const config = {
-      repos: repos.map((r) => ({
-        name: r.name,
-        fullName: r.fullName,
-        cloneUrl: r.cloneUrl,
-        htmlUrl: r.htmlUrl,
-      })),
-      outputDir,
-    };
-    const configJson = JSON.stringify(config, null, 2);
-    fs.writeFileSync(path.join(outputDir, ".autodocrc.json"), configJson);
-    // Also save in CWD so deploy/generate/setup-ci can find it
-    const cwdConfig = path.resolve(".autodocrc.json");
-    if (cwdConfig !== path.join(outputDir, ".autodocrc.json")) {
-      fs.writeFileSync(cwdConfig, configJson);
-    }
+    saveConfig(config);
   } catch {
     // Non-critical
   }
@@ -236,13 +234,70 @@ export async function initCommand(options: { output?: string }) {
   // Cleanup temp clones
   cleanup(clones);
 
-  // Done!
-  p.note(
-    `cd ${path.relative(process.cwd(), outputDir)} && npm run dev`,
-    "Next steps",
-  );
+  p.log.success("Documentation generated successfully!");
 
-  p.outro("Documentation generated successfully!");
+  // Optional deploy follow-up
+  const shouldDeploy = await p.confirm({
+    message: "Would you like to deploy your docs to GitHub?",
+  });
+
+  if (p.isCancel(shouldDeploy) || !shouldDeploy) {
+    p.note(
+      `cd ${path.relative(process.cwd(), outputDir)} && npm run dev`,
+      "Next steps",
+    );
+    p.outro("Done!");
+    return;
+  }
+
+  const deployResult = await createAndPushDocsRepo({
+    token,
+    docsDir: outputDir,
+    config,
+  });
+
+  if (!deployResult) {
+    p.note(
+      `cd ${path.relative(process.cwd(), outputDir)} && npm run dev`,
+      "Next steps",
+    );
+    p.outro("Done!");
+    return;
+  }
+
+  // Optional CI setup follow-up
+  const shouldSetupCi = await p.confirm({
+    message: "Would you like to set up CI to auto-update docs on every push?",
+  });
+
+  if (p.isCancel(shouldSetupCi) || !shouldSetupCi) {
+    showVercelInstructions(deployResult.owner, deployResult.repoName);
+    p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
+    return;
+  }
+
+  const gitRoot = getGitRoot();
+  if (!gitRoot) {
+    p.log.warn("Not in a git repository — skipping CI setup. Run `open-auto-doc setup-ci` from your project root later.");
+    showVercelInstructions(deployResult.owner, deployResult.repoName);
+    p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
+    return;
+  }
+
+  const ciResult = await createCiWorkflow({
+    gitRoot,
+    docsRepoUrl: deployResult.repoUrl,
+    outputDir,
+    token,
+    config,
+  });
+
+  if (ciResult) {
+    showSecretsInstructions(repos.length > 1);
+  }
+
+  showVercelInstructions(deployResult.owner, deployResult.repoName);
+  p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
 }
 
 function resolveTemplateDir(): string {
