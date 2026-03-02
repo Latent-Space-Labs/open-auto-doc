@@ -9,4 +9,4 @@ export type {
   GettingStartedGuide,
   MermaidDiagram,
   StaticAnalysis,
-} from "@open-auto-doc/analyzer";
+} from "@latent-space-labs/auto-doc-analyzer";

@@ -11,9 +11,9 @@ import {
 } from "../auth/token-store.js";
 import { cloneRepo, cleanupClone, type ClonedRepo } from "../github/fetcher.js";
 import { pickRepos } from "../github/repo-picker.js";
-import { analyzeRepository, analyzeCrossRepos } from "@open-auto-doc/analyzer";
-import type { AnalysisResult, CrossRepoAnalysis } from "@open-auto-doc/analyzer";
-import { scaffoldSite, writeContent, writeMeta } from "@open-auto-doc/generator";
+import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
+import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
+import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

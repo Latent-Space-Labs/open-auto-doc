@@ -10,9 +10,9 @@ import {
   saveCache,
   loadCache,
   getHeadSha,
-} from "@open-auto-doc/analyzer";
-import type { AnalysisResult, CrossRepoAnalysis } from "@open-auto-doc/analyzer";
-import { writeContent, writeMeta } from "@open-auto-doc/generator";
+} from "@latent-space-labs/auto-doc-analyzer";
+import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
+import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 
 interface AutodocConfig {
   repos: Array<{

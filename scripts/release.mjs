@@ -60,11 +60,11 @@ for (const pkgPath of PACKAGES) {
 
   // Update internal dep references in CLI
   if (pkgPath === CLI_PKG) {
-    if (pkg.dependencies["@open-auto-doc/analyzer"]) {
-      pkg.dependencies["@open-auto-doc/analyzer"] = `^${newVersion}`;
+    if (pkg.dependencies["@latent-space-labs/auto-doc-analyzer"]) {
+      pkg.dependencies["@latent-space-labs/auto-doc-analyzer"] = `^${newVersion}`;
     }
-    if (pkg.dependencies["@open-auto-doc/generator"]) {
-      pkg.dependencies["@open-auto-doc/generator"] = `^${newVersion}`;
+    if (pkg.dependencies["@latent-space-labs/auto-doc-generator"]) {
+      pkg.dependencies["@latent-space-labs/auto-doc-generator"] = `^${newVersion}`;
     }
   }
 
