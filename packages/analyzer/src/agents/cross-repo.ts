@@ -34,6 +34,21 @@ const crossRepoSchema = {
         required: ["from", "to", "relationshipType", "description"],
       },
     },
+    integrationPatterns: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          repos: { type: "array", items: { type: "string" } },
+          pattern: { type: "string", description: "e.g. REST API, Message Queue, Shared Database, gRPC" },
+          description: { type: "string" },
+          direction: { type: "string", description: "e.g. bidirectional, producer->consumer, client->server" },
+        },
+        required: ["repos", "pattern", "description", "direction"],
+      },
+    },
+    dataFlowAcrossServices: { type: "string", description: "Description of how data moves across the different services/repos" },
+    sharedConventions: { type: "array", items: { type: "string" }, description: "Common patterns, conventions, or standards shared across repos" },
     diagrams: {
       type: "array",
       items: {
@@ -48,7 +63,7 @@ const crossRepoSchema = {
       },
     },
   },
-  required: ["summary", "sharedDependencies", "techStackOverlap", "apiContracts", "repoRelationships", "diagrams"],
+  required: ["summary", "sharedDependencies", "techStackOverlap", "apiContracts", "repoRelationships", "integrationPatterns", "dataFlowAcrossServices", "sharedConventions", "diagrams"],
 };
 
 export async function analyzeCrossRepos(
@@ -66,10 +81,14 @@ export async function analyzeCrossRepos(
       .map((e) => `${e.method} ${e.path} - ${e.description}`)
       .slice(0, 20);
 
+    const featuresSummary = r.features
+      ? `**Tagline:** ${r.features.tagline}\n**Key Features:** ${r.features.features.slice(0, 5).map((f) => f.name).join(", ")}`
+      : "";
+
     return `### ${r.repoName}
 **Tech Stack:** ${r.architecture.techStack.join(", ")}
 **Summary:** ${r.architecture.summary.split("\n")[0]}
-**Modules:** ${r.architecture.modules.map((m) => m.name).join(", ")}
+${featuresSummary ? featuresSummary + "\n" : ""}**Modules:** ${r.architecture.modules.map((m) => m.name).join(", ")}
 **Dependencies:** ${deps.join(", ")}
 **API Endpoints:** ${endpoints.length > 0 ? "\n" + endpoints.join("\n") : "None"}
 **Components:** ${r.components.length} components
@@ -92,7 +111,10 @@ Based on the summaries above, identify:
 2. Technology stack overlap
 3. API contracts (which repos consume/provide APIs to each other)
 4. Relationships between repos (shared library, client-server, monorepo packages, etc.)
-5. Generate a Mermaid \`graph TD\` system diagram showing all repos and their relationships
+5. Integration patterns — how do the repos communicate? (REST API, message queue, shared database, gRPC, etc.) Include direction (bidirectional, producer->consumer, client->server)
+6. Data flow across services — describe how data moves between the different repos/services
+7. Shared conventions — common patterns, naming conventions, coding standards, or architectural patterns used across repos
+8. Generate a Mermaid \`graph TD\` system diagram showing all repos and their relationships
 
 Do NOT use file tools — all information is provided above.`,
     cwd: process.cwd(),

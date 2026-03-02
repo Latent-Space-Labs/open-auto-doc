@@ -56,6 +56,8 @@ export interface MermaidDiagram {
 
 export interface ArchitectureOverview {
   summary: string;
+  projectPurpose: string;
+  targetAudience: string;
   techStack: string[];
   modules: ModuleInfo[];
   dataFlow: string;
@@ -121,6 +123,26 @@ export interface FieldDoc {
   constraints?: string[];
 }
 
+export interface Feature {
+  name: string;
+  description: string;
+  category: string;
+  relatedFiles: string[];
+}
+
+export interface UseCase {
+  title: string;
+  description: string;
+  involvedFeatures: string[];
+}
+
+export interface FeaturesAnalysis {
+  tagline: string;
+  targetAudience: string;
+  features: Feature[];
+  useCases: UseCase[];
+}
+
 export interface GettingStartedGuide {
   prerequisites: string[];
   installation: string;
@@ -134,6 +156,7 @@ export interface AnalysisResult {
   repoUrl: string;
   staticAnalysis: StaticAnalysis;
   architecture: ArchitectureOverview;
+  features: FeaturesAnalysis | null;
   apiEndpoints: ApiEndpoint[];
   components: ComponentDoc[];
   dataModels: DataModelDoc[];
@@ -156,12 +179,22 @@ export interface RepoRelationship {
   description: string;
 }
 
+export interface IntegrationPattern {
+  repos: string[];
+  pattern: string;
+  description: string;
+  direction: string;
+}
+
 export interface CrossRepoAnalysis {
   summary: string;
   sharedDependencies: string[];
   techStackOverlap: string[];
   apiContracts: ApiContract[];
   repoRelationships: RepoRelationship[];
+  integrationPatterns: IntegrationPattern[];
+  dataFlowAcrossServices: string;
+  sharedConventions: string[];
   diagrams: MermaidDiagram[];
 }
 

@@ -46,7 +46,7 @@ function loadTemplates() {
     );
   }
 
-  const templateFiles = ["overview", "getting-started", "api-endpoint", "component", "data-model", "diagrams", "cross-repo"];
+  const templateFiles = ["overview", "features", "getting-started", "architecture", "api-endpoint", "component", "data-model", "diagrams", "cross-repo"];
   for (const name of templateFiles) {
     const filePath = path.join(templateDir, `${name}.hbs`);
     if (fs.existsSync(filePath)) {
@@ -134,11 +134,35 @@ async function writeRepoContent(dir: string, result: AnalysisResult): Promise<vo
     await fs.writeFile(path.join(dir, "index.mdx"), renderTemplate("overview", overviewData));
   }
 
+  // Features
+  if (safeResult.features && safeResult.features.features.length > 0 && templates["features"]) {
+    // Group features by category
+    const featuresByCategory: Record<string, typeof safeResult.features.features> = {};
+    for (const feature of safeResult.features.features) {
+      const cat = feature.category || "General";
+      if (!featuresByCategory[cat]) featuresByCategory[cat] = [];
+      featuresByCategory[cat].push(feature);
+    }
+
+    await fs.writeFile(
+      path.join(dir, "features.mdx"),
+      renderTemplate("features", { ...safeResult, featuresByCategory }),
+    );
+  }
+
   // Getting Started
   if (templates["getting-started"]) {
     await fs.writeFile(
       path.join(dir, "getting-started.mdx"),
       renderTemplate("getting-started", safeResult),
+    );
+  }
+
+  // Architecture
+  if (templates["architecture"]) {
+    await fs.writeFile(
+      path.join(dir, "architecture.mdx"),
+      renderTemplate("architecture", safeResult),
     );
   }
 

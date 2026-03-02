@@ -1,0 +1,58 @@
+---
+title: "Architecture"
+description: "Architecture deep-dive for {{repoName}}"
+---
+
+# Architecture
+
+{{{architecture.summary}}}
+
+## Data Flow
+
+{{{architecture.dataFlow}}}
+
+## Key Patterns
+
+{{#each architecture.keyPatterns}}
+- {{this}}
+{{/each}}
+
+## Entry Points
+
+{{#each architecture.entryPoints}}
+- `{{this}}`
+{{/each}}
+
+## Modules
+
+{{#each architecture.modules}}
+### {{this.name}}
+
+{{this.description}}
+
+**Key Files:**
+{{#each this.files}}
+- `{{this}}`
+{{/each}}
+
+**Responsibilities:**
+{{#each this.responsibilities}}
+- {{this}}
+{{/each}}
+
+{{/each}}
+
+{{#if diagrams.length}}
+## Diagrams
+
+{{#each diagrams}}
+### {{this.title}}
+
+{{this.description}}
+
+```mermaid
+{{{this.mermaidSyntax}}}
+```
+
+{{/each}}
+{{/if}}

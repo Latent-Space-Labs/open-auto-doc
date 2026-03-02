@@ -1,4 +1,4 @@
-import type { AnalysisResult, AnalyzerOptions, MermaidDiagram, StaticAnalysis } from "./types.js";
+import type { AnalysisResult, AnalyzerOptions, FeaturesAnalysis, MermaidDiagram, StaticAnalysis } from "./types.js";
 import { buildFileTree, detectEntryFiles, detectLanguages } from "./parsers/tree.js";
 import { parseDependencies } from "./parsers/dependencies.js";
 import { readClaudeMd } from "./parsers/claude-md.js";
@@ -7,6 +7,7 @@ import { analyzeArchitecture } from "./agents/architect.js";
 import { analyzeApiEndpoints } from "./agents/api-doc.js";
 import { analyzeComponents } from "./agents/component-doc.js";
 import { analyzeDataModels } from "./agents/model-doc.js";
+import { analyzeFeatures } from "./agents/features.js";
 import { writeGettingStarted } from "./agents/guide-writer.js";
 import { initializeRepo } from "./agents/repo-init.js";
 import { computeDiff, classifyChanges, type AffectedSection } from "./diff.js";
@@ -59,20 +60,23 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
   onProgress?.("architecture", `Identified ${architecture.modules.length} modules, ${architecture.diagrams.length} diagrams`);
 
   // Stage 3: Detail pass (parallel, Agent SDK — failures are non-fatal)
-  onProgress?.("details", "Analyzing APIs, components, and data models...");
-  const [apiSettled, compSettled, modelSettled] = await Promise.allSettled([
+  onProgress?.("details", "Analyzing APIs, components, data models, and features...");
+  const [apiSettled, compSettled, modelSettled, featuresSettled] = await Promise.allSettled([
     analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
     analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
     analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
+    analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage),
   ]);
 
   const apiResult = apiSettled.status === "fulfilled" ? apiSettled.value : null;
   const components = compSettled.status === "fulfilled" ? compSettled.value : [];
   const modelResult = modelSettled.status === "fulfilled" ? modelSettled.value : null;
+  const features: FeaturesAnalysis | null = featuresSettled.status === "fulfilled" ? featuresSettled.value : null;
 
   if (apiSettled.status === "rejected") onProgress?.("details", `API analysis failed (non-fatal): ${apiSettled.reason}`);
   if (compSettled.status === "rejected") onProgress?.("details", `Component analysis failed (non-fatal): ${compSettled.reason}`);
   if (modelSettled.status === "rejected") onProgress?.("details", `Data model analysis failed (non-fatal): ${modelSettled.reason}`);
+  if (featuresSettled.status === "rejected") onProgress?.("details", `Features analysis failed (non-fatal): ${featuresSettled.reason}`);
 
   const apiEndpoints = apiResult?.endpoints ?? [];
   const dataModels = modelResult?.models ?? [];
@@ -86,7 +90,7 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
 
   onProgress?.(
     "details",
-    `Found ${apiEndpoints.length} endpoints, ${components.length} components, ${dataModels.length} models, ${diagrams.length} diagrams`,
+    `Found ${apiEndpoints.length} endpoints, ${components.length} components, ${dataModels.length} models, ${diagrams.length} diagrams${features ? `, ${features.features.length} features` : ""}`,
   );
 
   // Stage 4: Synthesis (Agent SDK)
@@ -106,6 +110,7 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
     repoUrl,
     staticAnalysis,
     architecture,
+    features,
     apiEndpoints,
     components,
     dataModels,
@@ -188,6 +193,7 @@ export async function analyzeRepositoryIncremental(
   let apiEndpoints = previousResult.apiEndpoints;
   let components = previousResult.components;
   let dataModels = previousResult.dataModels;
+  let features = previousResult.features;
   let apiDiagram: MermaidDiagram | undefined;
   let modelDiagram: MermaidDiagram | undefined;
 
@@ -235,6 +241,18 @@ export async function analyzeRepositoryIncremental(
     );
   }
 
+  if (affected.has("features")) {
+    promises.push(
+      analyzeFeatures(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+        (result) => {
+          features = result;
+        },
+      ).catch((err) => {
+        onProgress?.("details", `Features re-analysis failed (non-fatal): ${err}`);
+      }),
+    );
+  }
+
   if (promises.length > 0) {
     onProgress?.("details", "Re-analyzing affected sections...");
     await Promise.all(promises);
@@ -276,6 +294,7 @@ export async function analyzeRepositoryIncremental(
     repoUrl,
     staticAnalysis,
     architecture,
+    features,
     apiEndpoints,
     components,
     dataModels,

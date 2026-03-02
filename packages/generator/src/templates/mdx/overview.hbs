@@ -1,53 +1,34 @@
 ---
 title: "{{repoName}} Overview"
-description: "Architecture overview and documentation for {{repoName}}"
+description: "Documentation for {{repoName}}"
 ---
 
 # {{repoName}}
 
+{{#if architecture.projectPurpose}}
+{{{architecture.projectPurpose}}}
+{{else}}
 {{{architecture.summary}}}
+{{/if}}
+
+{{#if architecture.targetAudience}}
+**Who is this for?** {{{architecture.targetAudience}}}
+{{/if}}
+
+{{#if features}}
+## What It Does
+
+{{{features.tagline}}}
+
+{{#each features.features}}
+- **{{this.name}}** — {{this.description}}
+{{/each}}
+{{/if}}
 
 ## Tech Stack
 
 {{#each architecture.techStack}}
 - {{this}}
-{{/each}}
-
-## Architecture
-
-### Data Flow
-
-{{{architecture.dataFlow}}}
-
-### Key Patterns
-
-{{#each architecture.keyPatterns}}
-- {{this}}
-{{/each}}
-
-### Entry Points
-
-{{#each architecture.entryPoints}}
-- `{{this}}`
-{{/each}}
-
-## Modules
-
-{{#each architecture.modules}}
-### {{this.name}}
-
-{{this.description}}
-
-**Key Files:**
-{{#each this.files}}
-- `{{this}}`
-{{/each}}
-
-**Responsibilities:**
-{{#each this.responsibilities}}
-- {{this}}
-{{/each}}
-
 {{/each}}
 
 ## Project Stats
@@ -59,18 +40,3 @@ description: "Architecture overview and documentation for {{repoName}}"
 | API Endpoints | {{apiEndpointCount}} |
 | Components | {{componentCount}} |
 | Data Models | {{dataModelCount}} |
-
-{{#if diagrams.length}}
-## Diagrams
-
-{{#each diagrams}}
-### {{this.title}}
-
-{{this.description}}
-
-```mermaid
-{{{this.mermaidSyntax}}}
-```
-
-{{/each}}
-{{/if}}

@@ -36,7 +36,10 @@ export async function writeMeta(
 async function writeRepoMeta(dir: string, result: AnalysisResult): Promise<void> {
   await fs.ensureDir(dir);
 
-  const pages: string[] = ["index", "getting-started"];
+  const pages: string[] = ["index"];
+  if (result.features && result.features.features.length > 0) pages.push("features");
+  pages.push("getting-started");
+  pages.push("architecture");
   if (result.apiEndpoints.length > 0) pages.push("api");
   if (result.components.length > 0) pages.push("components");
   if (result.dataModels.length > 0) pages.push("data-models");

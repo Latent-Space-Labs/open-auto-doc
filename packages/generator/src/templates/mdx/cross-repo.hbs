@@ -61,3 +61,27 @@ Technologies shared across repositories:
 - **{{this.from}}** → **{{this.to}}** ({{this.relationshipType}}): {{this.description}}
 {{/each}}
 {{/if}}
+
+{{#if integrationPatterns.length}}
+## Integration Patterns
+
+| Repositories | Pattern | Direction | Description |
+|-------------|---------|-----------|-------------|
+{{#each integrationPatterns}}
+| {{join this.repos ", "}} | {{this.pattern}} | {{this.direction}} | {{pipeEscape this.description}} |
+{{/each}}
+{{/if}}
+
+{{#if dataFlowAcrossServices}}
+## Cross-Service Data Flow
+
+{{{dataFlowAcrossServices}}}
+{{/if}}
+
+{{#if sharedConventions.length}}
+## Shared Conventions
+
+{{#each sharedConventions}}
+- {{this}}
+{{/each}}
+{{/if}}

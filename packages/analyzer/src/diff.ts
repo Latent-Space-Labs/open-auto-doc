@@ -13,6 +13,7 @@ export type AffectedSection =
   | "api"
   | "components"
   | "dataModels"
+  | "features"
   | "gettingStarted";
 
 export interface DiffResult {
@@ -54,6 +55,16 @@ const SECTION_PATTERNS: Record<AffectedSection, RegExp[]> = {
     /docker/i,
     /\.env/,
     /webpack|vite|rollup|esbuild/i,
+  ],
+  features: [
+    /readme/i,
+    /cli\//i,
+    /commands?\//i,
+    /pages?\//i,
+    /views?\//i,
+    /features?\//i,
+    /tests?\//i,
+    /specs?\//i,
   ],
   gettingStarted: [
     /readme/i,
@@ -108,6 +119,7 @@ export function classifyChanges(
         "api",
         "components",
         "dataModels",
+        "features",
         "gettingStarted",
       ]),
       fullRegenRequired: true,

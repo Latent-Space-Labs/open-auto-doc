@@ -1,0 +1,47 @@
+---
+title: "Features"
+description: "User-facing features and capabilities of {{repoName}}"
+---
+
+# Features
+
+{{{features.tagline}}}
+
+**Target Audience:** {{{features.targetAudience}}}
+
+{{#each featuresByCategory}}
+## {{@key}}
+
+{{#each this}}
+### {{this.name}}
+
+{{this.description}}
+
+{{#if this.relatedFiles.length}}
+<details>
+<summary>Related files</summary>
+
+{{#each this.relatedFiles}}
+- `{{this}}`
+{{/each}}
+
+</details>
+{{/if}}
+
+{{/each}}
+{{/each}}
+
+{{#if features.useCases.length}}
+## Use Cases
+
+{{#each features.useCases}}
+### {{this.title}}
+
+{{this.description}}
+
+{{#if this.involvedFeatures.length}}
+**Involves:** {{join this.involvedFeatures ", "}}
+{{/if}}
+
+{{/each}}
+{{/if}}

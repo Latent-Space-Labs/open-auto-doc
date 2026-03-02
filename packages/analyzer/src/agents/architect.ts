@@ -5,6 +5,8 @@ const architectureSchema = {
   type: "object",
   properties: {
     summary: { type: "string", description: "2-3 paragraph description of the project" },
+    projectPurpose: { type: "string", description: "1-2 paragraph plain-language description of what this project does for someone who has never seen it" },
+    targetAudience: { type: "string", description: "Who the intended users of this software are" },
     techStack: { type: "array", items: { type: "string" } },
     modules: {
       type: "array",
@@ -36,7 +38,7 @@ const architectureSchema = {
       },
     },
   },
-  required: ["summary", "techStack", "modules", "dataFlow", "entryPoints", "keyPatterns", "diagrams"],
+  required: ["summary", "projectPurpose", "targetAudience", "techStack", "modules", "dataFlow", "entryPoints", "keyPatterns", "diagrams"],
 };
 
 export async function analyzeArchitecture(
@@ -63,6 +65,8 @@ export async function analyzeArchitecture(
     systemPrompt: `You are a senior software architect analyzing a codebase. Produce structured JSON analysis.
 Your output must be valid JSON matching the provided schema. No markdown, no explanations outside the JSON.`,
     prompt: `Analyze this repository's architecture.
+
+Before diving into architecture, first describe what this project does in 1-2 paragraphs (projectPurpose) for someone who has never seen it. Also identify the target audience — who would use this software and why.
 
 ## Known Context (from static parsing)
 - Languages: ${staticAnalysis.languages.join(", ")}

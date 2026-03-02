@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AnalysisResult } from "./types.js";
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 export interface AnalysisCache {
   version: number;
