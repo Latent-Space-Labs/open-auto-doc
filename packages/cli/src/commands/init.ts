@@ -24,6 +24,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export async function initCommand(options: { output?: string }) {
   p.intro("open-auto-doc — AI-powered documentation generator");
 
+  // Validate site template exists before doing anything else (fail fast)
+  const templateDir = resolveTemplateDir();
+  if (!fs.existsSync(path.join(templateDir, "package.json"))) {
+    p.log.error(
+      `Site template not found at: ${templateDir}\n` +
+      `This usually means the npm package was not built correctly.\n` +
+      `Try reinstalling: npm install -g @latent-space-labs/open-auto-doc`
+    );
+    process.exit(1);
+  }
+
   // Step 1: GitHub authentication
   let token = getGithubToken();
   if (!token) {
@@ -190,8 +201,6 @@ export async function initCommand(options: { output?: string }) {
   // Scaffold site
   try {
     genSpinner.start("Scaffolding documentation site...");
-    const templateDir = resolveTemplateDir();
-    p.log.info(`Using template from: ${templateDir}`);
     await scaffoldSite(outputDir, projectName, templateDir);
     genSpinner.stop("Site scaffolded");
   } catch (err) {
