@@ -299,11 +299,12 @@ export async function initCommand(options: { output?: string }) {
 }
 
 function resolveTemplateDir(): string {
-  // Look for site-template in the monorepo or installed location
+  // Candidates ordered: bundled in dist (npm install), then monorepo dev paths
   const candidates = [
-    path.resolve(__dirname, "../../site-template"),
-    path.resolve(__dirname, "../../../site-template"),
-    path.resolve(__dirname, "../../../../packages/site-template"),
+    path.resolve(__dirname, "site-template"),              // dist/site-template (npm global install)
+    path.resolve(__dirname, "../../site-template"),         // monorepo: packages/site-template
+    path.resolve(__dirname, "../../../site-template"),      // monorepo alt
+    path.resolve(__dirname, "../../../../packages/site-template"), // monorepo from nested dist
   ];
 
   for (const candidate of candidates) {
@@ -311,8 +312,8 @@ function resolveTemplateDir(): string {
     if (fs.existsSync(pkgPath)) return candidate;
   }
 
-  // Fallback: use relative path from CLI dist
-  return path.resolve(__dirname, "../../site-template");
+  // Fallback to bundled location
+  return path.resolve(__dirname, "site-template");
 }
 
 function cleanup(clones: ClonedRepo[]) {

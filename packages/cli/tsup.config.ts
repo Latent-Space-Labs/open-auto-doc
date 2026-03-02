@@ -1,6 +1,8 @@
 import { defineConfig } from "tsup";
-import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { copyFileSync, cpSync, mkdirSync, readdirSync } from "node:fs";
+import { basename, join } from "node:path";
+
+const TEMPLATE_EXCLUDE = new Set(["node_modules", ".next", ".source", "dist", ".turbo"]);
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -22,5 +24,11 @@ export default defineConfig({
     for (const file of readdirSync(srcDir)) {
       copyFileSync(join(srcDir, file), join(destDir, file));
     }
+
+    // Copy site-template into dist so it ships with the npm package
+    cpSync(join("..", "site-template"), join("dist", "site-template"), {
+      recursive: true,
+      filter: (src) => !TEMPLATE_EXCLUDE.has(basename(src)),
+    });
   },
 });
