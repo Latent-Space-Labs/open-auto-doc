@@ -3,7 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { getAnthropicKey, getGithubToken } from "../auth/token-store.js";
 import { cloneRepo, cleanupClone, type ClonedRepo } from "../github/fetcher.js";
-import { analyzeRepository, analyzeCrossRepos } from "@open-auto-doc/analyzer";
+import {
+  analyzeRepository,
+  analyzeRepositoryIncremental,
+  analyzeCrossRepos,
+  saveCache,
+  loadCache,
+  getHeadSha,
+} from "@open-auto-doc/analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@open-auto-doc/analyzer";
 import { writeContent, writeMeta } from "@open-auto-doc/generator";
 
@@ -17,11 +24,19 @@ interface AutodocConfig {
   outputDir: string;
 }
 
-export async function generateCommand() {
+interface GenerateOptions {
+  incremental?: boolean;
+  force?: boolean;
+}
+
+export async function generateCommand(options: GenerateOptions) {
   p.intro("open-auto-doc — Regenerating documentation");
 
-  // Look for .autodocrc.json in current directory
-  const configPath = path.resolve(".autodocrc.json");
+  // Look for .autodocrc.json in CWD, then in docs-site/
+  let configPath = path.resolve(".autodocrc.json");
+  if (!fs.existsSync(configPath)) {
+    configPath = path.resolve("docs-site", ".autodocrc.json");
+  }
   if (!fs.existsSync(configPath)) {
     p.log.error("No .autodocrc.json found. Run `open-auto-doc init` first.");
     process.exit(1);
@@ -32,14 +47,17 @@ export async function generateCommand() {
   const apiKey = getAnthropicKey();
 
   if (!token) {
-    p.log.error("Not authenticated. Run `open-auto-doc login` first.");
+    p.log.error("Not authenticated. Run `open-auto-doc login` or set GITHUB_TOKEN env var.");
     process.exit(1);
   }
 
   if (!apiKey) {
-    p.log.error("No Anthropic API key found. Run `open-auto-doc init` first.");
+    p.log.error("No Anthropic API key found. Run `open-auto-doc init` or set ANTHROPIC_API_KEY env var.");
     process.exit(1);
   }
+
+  const incremental = options.incremental && !options.force;
+  const cacheDir = path.join(config.outputDir, ".autodoc-cache");
 
   const results: AnalysisResult[] = [];
   const clones: ClonedRepo[] = [];
@@ -57,24 +75,71 @@ export async function generateCommand() {
         private: false,
       },
       token,
+      { shallow: !incremental },
     );
     clones.push(cloned);
     spinner.stop(`Cloned ${repo.name}`);
 
     spinner.start(`Analyzing ${repo.name}...`);
     try {
-      const result = await analyzeRepository({
-        repoPath: cloned.localPath,
-        repoName: repo.name,
-        repoUrl: repo.htmlUrl,
-        apiKey,
-        onProgress: (_stage, message) => {
-          spinner.message(message);
-        },
-        onAgentMessage: (text) => {
-          spinner.message(text);
-        },
-      });
+      let result: AnalysisResult;
+
+      if (incremental) {
+        const cached = loadCache(cacheDir, repo.name);
+        if (cached) {
+          spinner.message(`Incremental analysis (cached from ${cached.commitSha.slice(0, 7)})...`);
+          result = await analyzeRepositoryIncremental({
+            repoPath: cloned.localPath,
+            repoName: repo.name,
+            repoUrl: repo.htmlUrl,
+            apiKey,
+            previousResult: cached.result,
+            previousCommitSha: cached.commitSha,
+            onProgress: (_stage, message) => {
+              spinner.message(message);
+            },
+            onAgentMessage: (text) => {
+              spinner.message(text);
+            },
+          });
+        } else {
+          spinner.message("No cache found, running full analysis...");
+          result = await analyzeRepository({
+            repoPath: cloned.localPath,
+            repoName: repo.name,
+            repoUrl: repo.htmlUrl,
+            apiKey,
+            onProgress: (_stage, message) => {
+              spinner.message(message);
+            },
+            onAgentMessage: (text) => {
+              spinner.message(text);
+            },
+          });
+        }
+      } else {
+        result = await analyzeRepository({
+          repoPath: cloned.localPath,
+          repoName: repo.name,
+          repoUrl: repo.htmlUrl,
+          apiKey,
+          onProgress: (_stage, message) => {
+            spinner.message(message);
+          },
+          onAgentMessage: (text) => {
+            spinner.message(text);
+          },
+        });
+      }
+
+      // Save cache for future incremental runs
+      try {
+        const headSha = getHeadSha(cloned.localPath);
+        saveCache(cacheDir, repo.name, headSha, result);
+      } catch {
+        // Cache save failure is non-fatal
+      }
+
       results.push(result);
       spinner.stop(`Analyzed ${repo.name}`);
     } catch (err) {

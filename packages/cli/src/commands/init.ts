@@ -159,7 +159,7 @@ export async function initCommand(options: { output?: string }) {
     process.exit(1);
   }
 
-  // Save config for regeneration
+  // Save config for regeneration (in both outputDir and CWD)
   try {
     const config = {
       repos: repos.map((r) => ({
@@ -170,10 +170,13 @@ export async function initCommand(options: { output?: string }) {
       })),
       outputDir,
     };
-    fs.writeFileSync(
-      path.join(outputDir, ".autodocrc.json"),
-      JSON.stringify(config, null, 2),
-    );
+    const configJson = JSON.stringify(config, null, 2);
+    fs.writeFileSync(path.join(outputDir, ".autodocrc.json"), configJson);
+    // Also save in CWD so deploy/generate/setup-ci can find it
+    const cwdConfig = path.resolve(".autodocrc.json");
+    if (cwdConfig !== path.join(outputDir, ".autodocrc.json")) {
+      fs.writeFileSync(cwdConfig, configJson);
+    }
   } catch {
     // Non-critical
   }

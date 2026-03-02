@@ -226,7 +226,7 @@ const KNOWN_SHIKI_LANGS = new Set([
   "sql", "graphql", "yaml", "yml", "toml", "xml", "markdown", "md", "mdx",
   "diff", "docker", "ini", "make", "nginx", "prisma", "protobuf", "hcl",
   "terraform", "lua", "r", "scala", "elixir", "erlang", "clojure", "haskell",
-  "ocaml", "zig", "assembly", "wasm", "csv", "regex", "http",
+  "ocaml", "zig", "assembly", "wasm", "csv", "regex", "http", "mermaid",
 ]);
 
 function sanitizeCodeBlocks(mdx: string): string {

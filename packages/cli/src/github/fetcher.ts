@@ -9,7 +9,16 @@ export interface ClonedRepo {
   localPath: string;
 }
 
-export function cloneRepo(repo: RepoInfo, token: string): ClonedRepo {
+export interface CloneOptions {
+  shallow?: boolean;
+}
+
+export function cloneRepo(
+  repo: RepoInfo,
+  token: string,
+  options: CloneOptions = {},
+): ClonedRepo {
+  const { shallow = true } = options;
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "open-auto-doc-"));
   const repoDir = path.join(tmpDir, repo.name);
 
@@ -19,7 +28,8 @@ export function cloneRepo(repo: RepoInfo, token: string): ClonedRepo {
     `https://x-access-token:${token}@`,
   );
 
-  execSync(`git clone --depth 1 --single-branch "${cloneUrl}" "${repoDir}"`, {
+  const depthFlag = shallow ? "--depth 1 " : "";
+  execSync(`git clone ${depthFlag}--single-branch "${cloneUrl}" "${repoDir}"`, {
     stdio: "pipe",
   });
 

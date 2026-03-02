@@ -8,6 +8,12 @@ import { analyzeApiEndpoints } from "./agents/api-doc.js";
 import { analyzeComponents } from "./agents/component-doc.js";
 import { analyzeDataModels } from "./agents/model-doc.js";
 import { writeGettingStarted } from "./agents/guide-writer.js";
+import { computeDiff, classifyChanges, type AffectedSection } from "./diff.js";
+
+export interface IncrementalOptions extends AnalyzerOptions {
+  previousResult: AnalysisResult;
+  previousCommitSha: string;
+}
 
 export async function analyzeRepository(options: AnalyzerOptions): Promise<AnalysisResult> {
   const { repoPath, repoName, repoUrl, apiKey, model, onProgress, onAgentMessage } = options;
@@ -72,6 +78,161 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
     model,
     onAgentMessage,
   );
+
+  return {
+    repoName,
+    repoUrl,
+    staticAnalysis,
+    architecture,
+    apiEndpoints,
+    components,
+    dataModels,
+    gettingStarted,
+    diagrams,
+  };
+}
+
+export async function analyzeRepositoryIncremental(
+  options: IncrementalOptions,
+): Promise<AnalysisResult> {
+  const {
+    repoPath,
+    repoName,
+    repoUrl,
+    apiKey,
+    model,
+    onProgress,
+    onAgentMessage,
+    previousResult,
+    previousCommitSha,
+  } = options;
+
+  // Stage 1: Always re-run static parsing (fast)
+  onProgress?.("static", "Parsing file tree and dependencies...");
+  const { tree, flatFiles, totalFiles } = buildFileTree(repoPath);
+  const languages = detectLanguages(flatFiles);
+  const dependencies = parseDependencies(repoPath);
+  const claudeMd = readClaudeMd(repoPath);
+  const entryFiles = detectEntryFiles(flatFiles);
+  const importGraph = buildImportGraph(repoPath, flatFiles);
+
+  const staticAnalysis: StaticAnalysis = {
+    fileTree: tree,
+    languages,
+    dependencies,
+    claudeMd,
+    entryFiles,
+    totalFiles,
+    importGraph,
+  };
+
+  // Compute diff and classify
+  onProgress?.("incremental", "Computing changes since last analysis...");
+  const diffEntries = computeDiff(repoPath, previousCommitSha);
+
+  if (diffEntries.length === 0) {
+    onProgress?.("incremental", "No changes detected, reusing cached results");
+    return { ...previousResult, staticAnalysis };
+  }
+
+  const diffResult = classifyChanges(diffEntries, staticAnalysis);
+
+  if (diffResult.fullRegenRequired) {
+    onProgress?.("incremental", `${diffEntries.length} files changed — running full analysis`);
+    return analyzeRepository(options);
+  }
+
+  const affected = diffResult.affectedSections;
+  const sections = Array.from(affected).join(", ");
+  onProgress?.("incremental", `${diffEntries.length} files changed — re-analyzing: ${sections}`);
+
+  // Stage 2: Architecture (re-run or reuse)
+  let architecture = previousResult.architecture;
+  if (affected.has("architecture")) {
+    onProgress?.("architecture", "Re-analyzing architecture...");
+    architecture = await analyzeArchitecture(repoPath, staticAnalysis, apiKey, model, onAgentMessage);
+  }
+
+  // Stage 3: Detail agents (selective)
+  let apiEndpoints = previousResult.apiEndpoints;
+  let components = previousResult.components;
+  let dataModels = previousResult.dataModels;
+  let apiDiagram: MermaidDiagram | undefined;
+  let modelDiagram: MermaidDiagram | undefined;
+
+  // Extract previous diagrams from detail agents for reuse
+  const prevArchDiagramIds = new Set(previousResult.architecture.diagrams.map((d) => d.id));
+  const prevDetailDiagrams = previousResult.diagrams.filter((d) => !prevArchDiagramIds.has(d.id));
+
+  const promises: Promise<void>[] = [];
+
+  if (affected.has("api")) {
+    promises.push(
+      analyzeApiEndpoints(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+        (result) => {
+          apiEndpoints = result.endpoints;
+          apiDiagram = result.diagram;
+        },
+      ),
+    );
+  }
+
+  if (affected.has("components")) {
+    promises.push(
+      analyzeComponents(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+        (result) => {
+          components = result;
+        },
+      ),
+    );
+  }
+
+  if (affected.has("dataModels")) {
+    promises.push(
+      analyzeDataModels(repoPath, staticAnalysis, architecture, apiKey, model, onAgentMessage).then(
+        (result) => {
+          dataModels = result.models;
+          modelDiagram = result.diagram;
+        },
+      ),
+    );
+  }
+
+  if (promises.length > 0) {
+    onProgress?.("details", "Re-analyzing affected sections...");
+    await Promise.all(promises);
+  }
+
+  // Collect diagrams
+  const diagrams: MermaidDiagram[] = [...architecture.diagrams];
+  if (affected.has("api") && apiDiagram) {
+    diagrams.push(apiDiagram);
+  } else {
+    // Reuse previous API diagram if present
+    const prevApiDiag = prevDetailDiagrams.find((d) => d.id.includes("api"));
+    if (prevApiDiag) diagrams.push(prevApiDiag);
+  }
+  if (affected.has("dataModels") && modelDiagram) {
+    diagrams.push(modelDiagram);
+  } else {
+    const prevModelDiag = prevDetailDiagrams.find((d) => d.id.includes("model") || d.id.includes("er"));
+    if (prevModelDiag) diagrams.push(prevModelDiag);
+  }
+
+  // Stage 4: Getting started (re-run if affected)
+  let gettingStarted = previousResult.gettingStarted;
+  if (affected.has("gettingStarted")) {
+    onProgress?.("synthesis", "Re-writing getting started guide...");
+    gettingStarted = await writeGettingStarted(
+      repoPath,
+      staticAnalysis,
+      architecture,
+      { apiEndpoints, components, dataModels },
+      apiKey,
+      model,
+      onAgentMessage,
+    );
+  }
 
   return {
     repoName,

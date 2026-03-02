@@ -33,7 +33,7 @@ function writeCredentials(creds: StoredCredentials) {
 }
 
 export function getGithubToken(): string | undefined {
-  return readCredentials().githubToken;
+  return process.env.GITHUB_TOKEN || readCredentials().githubToken;
 }
 
 export function setGithubToken(token: string) {
@@ -49,7 +49,7 @@ export function clearGithubToken() {
 }
 
 export function getAnthropicKey(): string | undefined {
-  return readCredentials().anthropicKey;
+  return process.env.ANTHROPIC_API_KEY || readCredentials().anthropicKey;
 }
 
 export function setAnthropicKey(key: string) {

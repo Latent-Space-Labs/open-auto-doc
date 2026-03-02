@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import { initCommand } from "./commands/init.js";
 import { generateCommand } from "./commands/generate.js";
+import { deployCommand } from "./commands/deploy.js";
+import { setupCiCommand } from "./commands/setup-ci.js";
 import { loginCommand } from "./commands/login.js";
 import { logoutCommand } from "./commands/logout.js";
 
@@ -20,7 +22,20 @@ program
 program
   .command("generate")
   .description("Regenerate documentation using existing configuration")
+  .option("--incremental", "Only re-analyze changed files (uses cached results)")
+  .option("--force", "Force full regeneration (ignore cache)")
   .action(generateCommand);
+
+program
+  .command("deploy")
+  .description("Create a GitHub repo for docs and push (connect to Vercel for auto-deploy)")
+  .option("-d, --dir <path>", "Docs site directory")
+  .action(deployCommand);
+
+program
+  .command("setup-ci")
+  .description("Generate a GitHub Actions workflow for auto-updating docs")
+  .action(setupCiCommand);
 
 program
   .command("login")
