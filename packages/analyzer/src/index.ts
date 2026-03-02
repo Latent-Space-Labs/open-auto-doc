@@ -3,6 +3,8 @@ export type { IncrementalOptions } from "./pipeline.js";
 export { analyzeCrossRepos } from "./agents/cross-repo.js";
 export { initializeRepo } from "./agents/repo-init.js";
 export { AgentError } from "./agent-sdk.js";
+export { fixMdxBuildErrors } from "./agents/mdx-fixer.js";
+export type { FixerResult } from "./agents/mdx-fixer.js";
 export { saveCache, loadCache } from "./cache.js";
 export type { AnalysisCache } from "./cache.js";
 export { computeDiff, classifyChanges, getHeadSha } from "./diff.js";

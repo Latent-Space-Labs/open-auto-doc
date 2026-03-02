@@ -14,6 +14,7 @@ import { pickRepos } from "../github/repo-picker.js";
 import { saveConfig } from "../config.js";
 import type { AutodocConfig } from "../config.js";
 import { createAndPushDocsRepo, showVercelInstructions } from "../actions/deploy-action.js";
+import { runBuildCheck } from "../actions/build-check.js";
 import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
@@ -234,6 +235,13 @@ export async function initCommand(options: { output?: string }) {
 
   // Cleanup temp clones
   cleanup(clones);
+
+  // Build quality check — verifies MDX compiles, auto-fixes errors
+  try {
+    await runBuildCheck({ docsDir: outputDir, apiKey, model });
+  } catch (err) {
+    p.log.warn(`Build check skipped: ${err instanceof Error ? err.message : err}`);
+  }
 
   p.log.success("Documentation generated successfully!");
 

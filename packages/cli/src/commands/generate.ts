@@ -14,6 +14,7 @@ import {
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 import { ProgressTable, buildRepoSummary } from "../ui/progress-table.js";
+import { runBuildCheck } from "../actions/build-check.js";
 
 interface GenerateOptions {
   incremental?: boolean;
@@ -226,6 +227,14 @@ export async function generateCommand(options: GenerateOptions) {
     const contentDir = path.join(config.outputDir, "content", "docs");
     await writeContent(contentDir, results, crossRepo);
     await writeMeta(contentDir, results, crossRepo);
+
+    // Build quality check — verifies MDX compiles, auto-fixes errors
+    try {
+      await runBuildCheck({ docsDir: config.outputDir, apiKey, model });
+    } catch (err) {
+      p.log.warn(`Build check skipped: ${err instanceof Error ? err.message : err}`);
+    }
+
     p.log.success("Documentation regenerated!");
   }
 
