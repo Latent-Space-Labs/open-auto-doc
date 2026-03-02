@@ -1,5 +1,6 @@
 import * as p from "@clack/prompts";
 import fs from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -248,7 +249,7 @@ export async function initCommand(options: { output?: string }) {
 
   // Start dev server so the user can preview before deciding to deploy
   let devServer: ChildProcess | undefined;
-  const devPort = 3000;
+  const devPort = await findFreePort(3000);
 
   try {
     devServer = startDevServer(outputDir, devPort);
@@ -364,6 +365,25 @@ function startDevServer(docsDir: string, port: number): ChildProcess {
   // Unref so the parent process can exit if the user ctrl+c's
   child.unref();
   return child;
+}
+
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(true));
+    server.once("listening", () => {
+      server.close(() => resolve(false));
+    });
+    server.listen(port, "127.0.0.1");
+  });
+}
+
+async function findFreePort(startPort: number): Promise<number> {
+  let port = startPort;
+  while (await isPortInUse(port)) {
+    port++;
+  }
+  return port;
 }
 
 function killDevServer(child: ChildProcess) {
