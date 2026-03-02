@@ -2,6 +2,7 @@ import * as p from "@clack/prompts";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn, type ChildProcess } from "node:child_process";
 import { authenticateWithGithub } from "../auth/device-flow.js";
 import {
   getAnthropicKey,
@@ -245,18 +246,39 @@ export async function initCommand(options: { output?: string }) {
 
   p.log.success("Documentation generated successfully!");
 
+  // Start dev server so the user can preview before deciding to deploy
+  let devServer: ChildProcess | undefined;
+  const devPort = 3000;
+
+  try {
+    devServer = startDevServer(outputDir, devPort);
+    p.log.success(`Documentation site running at http://localhost:${devPort}`);
+    p.log.info("Open the link above to preview your docs site.");
+  } catch {
+    p.log.warn("Could not start preview server. You can run it manually:");
+    p.log.info(`  cd ${path.relative(process.cwd(), outputDir)} && npm run dev`);
+  }
+
   // Optional deploy follow-up
   const shouldDeploy = await p.confirm({
     message: "Would you like to deploy your docs to GitHub?",
   });
 
   if (p.isCancel(shouldDeploy) || !shouldDeploy) {
+    if (devServer) {
+      killDevServer(devServer);
+    }
     p.note(
       `cd ${path.relative(process.cwd(), outputDir)} && npm run dev`,
-      "Next steps",
+      "To start the dev server again",
     );
     p.outro("Done!");
     return;
+  }
+
+  // Kill dev server before deploying
+  if (devServer) {
+    killDevServer(devServer);
   }
 
   const deployResult = await createAndPushDocsRepo({
@@ -328,5 +350,29 @@ function resolveTemplateDir(): string {
 function cleanup(clones: ClonedRepo[]) {
   for (const clone of clones) {
     cleanupClone(clone);
+  }
+}
+
+function startDevServer(docsDir: string, port: number): ChildProcess {
+  // Install deps first (needed for fresh scaffolds)
+  const child = spawn("npm", ["run", "dev", "--", "-p", String(port)], {
+    cwd: docsDir,
+    stdio: "ignore",
+    detached: true,
+  });
+
+  // Unref so the parent process can exit if the user ctrl+c's
+  child.unref();
+  return child;
+}
+
+function killDevServer(child: ChildProcess) {
+  try {
+    // Kill the process group (negative PID) to also kill child processes
+    if (child.pid) {
+      process.kill(-child.pid, "SIGTERM");
+    }
+  } catch {
+    // Already dead
   }
 }
