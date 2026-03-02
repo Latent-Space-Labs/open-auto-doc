@@ -14,7 +14,7 @@ import { pickRepos } from "../github/repo-picker.js";
 import { saveConfig } from "../config.js";
 import type { AutodocConfig } from "../config.js";
 import { createAndPushDocsRepo, showVercelInstructions } from "../actions/deploy-action.js";
-import { getGitRoot, createCiWorkflow, showSecretsInstructions } from "../actions/setup-ci-action.js";
+import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
@@ -292,9 +292,7 @@ export async function initCommand(options: { output?: string }) {
     config,
   });
 
-  if (ciResult) {
-    showSecretsInstructions(repos.length > 1);
-  }
+  // Secret verification is handled inside createCiWorkflow
 
   showVercelInstructions(deployResult.owner, deployResult.repoName);
   p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);

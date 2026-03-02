@@ -4,7 +4,6 @@ import { loadConfig } from "../config.js";
 import {
   getGitRoot,
   createCiWorkflow,
-  showSecretsInstructions,
 } from "../actions/setup-ci-action.js";
 
 export async function setupCiCommand() {
@@ -44,8 +43,6 @@ export async function setupCiCommand() {
     p.cancel("Setup cancelled.");
     process.exit(0);
   }
-
-  showSecretsInstructions(isMultiRepo);
 
   if ("repos" in result) {
     p.outro("Per-repo CI workflows created! Add the required secrets to each source repo.");

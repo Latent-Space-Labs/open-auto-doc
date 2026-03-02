@@ -199,6 +199,29 @@ export async function createCiWorkflow(params: {
 
   p.log.success(`Created ${path.relative(gitRoot, workflowPath)}`);
 
+  // Interactive secret verification if we have a token
+  if (token) {
+    try {
+      const origin = execSync("git remote get-url origin", {
+        cwd: gitRoot,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
+      // Extract owner/repo from git remote URL
+      const match = origin.match(/github\.com[:/]([^/]+\/[^/.]+?)(?:\.git)?$/);
+      if (match) {
+        const octokit = new Octokit({ auth: token });
+        await verifySecretsInteractive(octokit, [match[1]]);
+      } else {
+        showSecretsInstructions(false);
+      }
+    } catch {
+      showSecretsInstructions(false);
+    }
+  } else {
+    showSecretsInstructions(false);
+  }
+
   return { workflowPath, branch };
 }
 
@@ -276,7 +299,126 @@ async function createCiWorkflowsMultiRepo(params: {
 
   p.log.success(`Created workflows in ${createdRepos.length}/${config.repos.length} repositories`);
 
+  // Interactive secret verification
+  await verifySecretsInteractive(octokit, createdRepos);
+
   return { repos: createdRepos, branch };
+}
+
+const REQUIRED_SECRETS = ["ANTHROPIC_API_KEY", "DOCS_DEPLOY_TOKEN"] as const;
+
+/**
+ * Checks whether a single Actions secret exists on a repo.
+ * Returns true if found, false otherwise (including permission errors).
+ */
+async function checkSecret(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  secretName: string,
+): Promise<boolean> {
+  try {
+    await octokit.rest.actions.getRepoSecret({ owner, repo, secret_name: secretName });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Interactive flow that guides the user through adding secrets to each repo,
+ * then verifies they exist via the GitHub API.
+ */
+async function verifySecretsInteractive(
+  octokit: Octokit,
+  repos: string[],
+): Promise<void> {
+  // Offer to skip
+  const shouldVerify = await p.confirm({
+    message: "Would you like to verify secrets now? (you can add them later)",
+    initialValue: true,
+  });
+
+  if (p.isCancel(shouldVerify) || !shouldVerify) {
+    showSecretsInstructions(repos.length > 1);
+    return;
+  }
+
+  // Show instructions once
+  p.note(
+    [
+      "Each source repo needs two Actions secrets:",
+      "",
+      "  ANTHROPIC_API_KEY   — Your Anthropic API key",
+      "  DOCS_DEPLOY_TOKEN   — GitHub PAT with repo scope",
+      "",
+      "To create the PAT:",
+      "  1. Go to https://github.com/settings/tokens",
+      "  2. Generate new token (classic) with 'repo' scope",
+      "  3. Copy the token and add it as DOCS_DEPLOY_TOKEN",
+    ].join("\n"),
+    "Required GitHub Secrets",
+  );
+
+  const summary: Record<string, Record<string, boolean>> = {};
+
+  for (const fullName of repos) {
+    const [owner, repoName] = fullName.split("/");
+    p.log.step(`Add secrets to ${fullName}`);
+    p.log.message(`  https://github.com/${fullName}/settings/secrets/actions`);
+
+    let allFound = false;
+    while (!allFound) {
+      await p.text({
+        message: `Press enter when you've added the secrets to ${fullName}...`,
+        defaultValue: "",
+        placeholder: "",
+      });
+
+      const results: Record<string, boolean> = {};
+      for (const secret of REQUIRED_SECRETS) {
+        results[secret] = await checkSecret(octokit, owner, repoName, secret);
+      }
+
+      for (const secret of REQUIRED_SECRETS) {
+        if (results[secret]) {
+          p.log.success(`${secret} — found`);
+        } else {
+          p.log.warn(`${secret} — not found`);
+        }
+      }
+
+      summary[fullName] = results;
+      allFound = REQUIRED_SECRETS.every((s) => results[s]);
+
+      if (!allFound) {
+        const retry = await p.confirm({
+          message: "Some secrets are missing. Would you like to try again?",
+          initialValue: true,
+        });
+        if (p.isCancel(retry) || !retry) break;
+      }
+    }
+  }
+
+  // Final summary
+  const lines: string[] = [];
+  let allGreen = true;
+  for (const fullName of repos) {
+    const parts = REQUIRED_SECRETS.map((s) => {
+      const ok = summary[fullName]?.[s] ?? false;
+      if (!ok) allGreen = false;
+      return ok ? `✓ ${s}` : `✗ ${s}`;
+    });
+    lines.push(`${fullName}  — ${parts.join("  ")}`);
+  }
+
+  if (allGreen) {
+    p.note(lines.join("\n"), "All secrets verified!");
+  } else {
+    p.note(lines.join("\n"), "Secret status");
+    p.log.warn("Some secrets are still missing — workflows will fail until they are added.");
+  }
 }
 
 /**
