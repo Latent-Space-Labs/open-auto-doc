@@ -28,11 +28,11 @@ jobs:
         run: npm run build
 
       - name: Publish @latent-space-labs/open-auto-doc
-        run: npm publish -w packages/cli --provenance --access public
+        run: npm publish -w packages/cli --provenance --access public || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @latent-space-labs/open-auto-doc-mcp
-        run: npm publish -w packages/mcp-server --provenance --access public
+        run: npm publish -w packages/mcp-server --provenance --access public || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
