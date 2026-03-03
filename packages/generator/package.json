@@ -1,6 +1,6 @@
 {
   "name": "@latent-space-labs/auto-doc-generator",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "MDX content and site scaffolding for open-auto-doc",
   "type": "module",
   "main": "./dist/index.js",
