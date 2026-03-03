@@ -18,6 +18,7 @@ import type { AutodocConfig } from "../config.js";
 import { createAndPushDocsRepo, showVercelInstructions } from "../actions/deploy-action.js";
 import { runBuildCheck } from "../actions/build-check.js";
 import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
+import { setupMcpConfig } from "./setup-mcp.js";
 import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
@@ -271,6 +272,14 @@ export async function initCommand(options: { output?: string }) {
   }
 
   p.log.success("Documentation generated successfully!");
+
+  // Optional MCP server setup
+  const shouldSetupMcp = await p.confirm({
+    message: "Set up MCP server so Claude Code can query your docs?",
+  });
+  if (!p.isCancel(shouldSetupMcp) && shouldSetupMcp) {
+    await setupMcpConfig({ outputDir });
+  }
 
   // Start dev server so the user can preview before deciding to deploy
   let devServer: ChildProcess | undefined;

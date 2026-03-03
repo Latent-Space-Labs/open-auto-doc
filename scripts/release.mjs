@@ -17,6 +17,7 @@ const PACKAGES = [
   "packages/analyzer/package.json",
   "packages/generator/package.json",
   "packages/cli/package.json",
+  "packages/mcp-server/package.json",
 ];
 
 const CLI_PKG = "packages/cli/package.json";

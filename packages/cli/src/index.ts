@@ -5,6 +5,7 @@ import { deployCommand } from "./commands/deploy.js";
 import { setupCiCommand } from "./commands/setup-ci.js";
 import { loginCommand } from "./commands/login.js";
 import { logoutCommand } from "./commands/logout.js";
+import { setupMcpCommand } from "./commands/setup-mcp.js";
 
 const program = new Command();
 
@@ -37,6 +38,11 @@ program
   .command("setup-ci")
   .description("Generate a GitHub Actions workflow for auto-updating docs")
   .action(setupCiCommand);
+
+program
+  .command("setup-mcp")
+  .description("Set up MCP server so Claude Code can query your docs")
+  .action(setupMcpCommand);
 
 program
   .command("login")

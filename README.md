@@ -123,6 +123,7 @@ You'll need to add two secrets to your source repo (Settings → Secrets → Act
 | `open-auto-doc generate --incremental` | Only re-analyze files that changed since last run |
 | `open-auto-doc deploy` | Create a GitHub repo for docs and push |
 | `open-auto-doc setup-ci` | Add a GitHub Actions workflow to auto-update docs on push |
+| `open-auto-doc setup-mcp` | Set up MCP server so Claude Code can query your docs |
 | `open-auto-doc login` | Authenticate with GitHub |
 | `open-auto-doc logout` | Clear all stored credentials |
 
@@ -186,6 +187,104 @@ You can also trigger it manually from the Actions tab.
 
 ---
 
+## MCP Server for AI Assistants
+
+open-auto-doc includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI assistants like Claude Code query your documentation directly. Instead of reading raw source files, the AI gets structured knowledge about your architecture, APIs, components, and data models.
+
+### How it works
+
+When you run `open-auto-doc init` or `generate`, the AI analysis results are saved as a JSON cache in `<outputDir>/.autodoc-cache/`. The MCP server is a separate lightweight package (`@latent-space-labs/open-auto-doc-mcp`) that reads this cache and exposes it over the [Model Context Protocol](https://modelcontextprotocol.io/) via stdio transport.
+
+```
+┌──────────────────┐      ┌───────────────────┐      ┌──────────────────┐
+│  open-auto-doc   │      │   .autodoc-cache/  │      │  MCP Server      │
+│  init / generate │─────▶│   *-analysis.json  │◀─────│  (stdio)         │
+│                  │ save │                    │ read │                  │
+└──────────────────┘      └───────────────────┘      └────────┬─────────┘
+                                                              │
+                                                     MCP protocol (stdio)
+                                                              │
+                                                     ┌────────▼─────────┐
+                                                     │  Claude Code     │
+                                                     │  or any MCP      │
+                                                     │  client          │
+                                                     └──────────────────┘
+```
+
+The flow:
+
+1. **Analysis** — `open-auto-doc init` clones your repos, runs AI agents to analyze architecture/APIs/components/models, and saves structured JSON results to `.autodoc-cache/`
+2. **Cache** — Each analyzed repo gets a `<repo-name>-analysis.json` file containing the full analysis: architecture overview, API endpoints, components, data models, diagrams, business logic, and more
+3. **MCP Server** — When Claude Code starts, it launches the MCP server via `npx`. The server reads the cached JSON files and registers tools + resources
+4. **Querying** — The AI assistant calls MCP tools (like `search_documentation` or `get_api_endpoints`) which query the in-memory analysis data and return structured JSON results
+
+The MCP server has no dependency on the analyzer or generator packages — it only reads JSON files. This keeps the `npx` startup fast (~2 seconds) and the install size small.
+
+### Setup
+
+During `open-auto-doc init`, you'll be prompted to set up the MCP server automatically. You can also set it up later:
+
+```bash
+open-auto-doc setup-mcp
+```
+
+This creates a `.mcp.json` file in your project root. Next time you open Claude Code in the project, the tools are available automatically.
+
+### Available tools
+
+| Tool | What it provides |
+|---|---|
+| `get_project_overview` | Project purpose, tech stack, summary stats |
+| `search_documentation` | Full-text search across all docs sections |
+| `get_api_endpoints` | API endpoints with params, auth, request/response |
+| `get_components` | UI components with props and usage examples |
+| `get_data_models` | Data models with fields, types, relationships |
+| `get_architecture` | Modules, data flow, patterns, entry points |
+| `get_diagram` | Mermaid diagrams (architecture, ER, flow) |
+| `get_business_rules` | Domain concepts, rules, workflows |
+
+All tools accept an optional `repo` parameter for multi-repo setups. When only one repo is loaded, it's used automatically.
+
+### Available resources
+
+The server also exposes MCP resources that clients can read directly:
+
+| URI | Description |
+|---|---|
+| `docs://overview` | Project overview (purpose, tech stack, summary) |
+| `docs://architecture` | Architecture details (modules, data flow, patterns) |
+| `docs://getting-started` | Getting started guide (prerequisites, install, quick start) |
+| `docs://diagrams/{diagramId}` | Individual Mermaid diagrams by ID |
+
+### Manual `.mcp.json` setup
+
+If you prefer to configure it manually instead of using `setup-mcp`:
+
+```json
+{
+  "mcpServers": {
+    "project-docs": {
+      "command": "npx",
+      "args": ["-y", "@latent-space-labs/open-auto-doc-mcp", "--project-dir", "."]
+    }
+  }
+}
+```
+
+### Cache discovery
+
+The MCP server finds the analysis cache automatically:
+
+1. `--cache-dir <path>` — direct path to the `.autodoc-cache` directory
+2. `--project-dir <path>` — scans for `.autodocrc.json`, reads `outputDir`, finds cache
+3. Default — scans the current directory and `docs-site/` for `.autodocrc.json`
+
+### Multi-repo support
+
+If you documented multiple repos together, the MCP server loads all of them. Tools require the `repo` parameter to specify which repo to query. `search_documentation` searches across all repos by default.
+
+---
+
 ## Language Support
 
 open-auto-doc is **language-agnostic**. It uses AI to understand code — not language-specific parsers. Works with:
@@ -221,6 +320,10 @@ It also reads dependency files (`package.json`, `requirements.txt`, `go.mod`, `C
 
 ## Contributing
 
+open-auto-doc is MIT-licensed and open to contributions. Whether it's bug fixes, new features, documentation improvements, or ideas — all contributions are welcome.
+
+### Getting started
+
 ```bash
 git clone https://github.com/Latent-Space-Labs/open-auto-doc.git
 cd open-auto-doc
@@ -230,12 +333,20 @@ npm run build
 
 ### Project structure
 
+This is a monorepo with npm workspaces:
+
 ```
 packages/
 ├── cli/            # Published as @latent-space-labs/open-auto-doc
+│                   # Commander.js CLI — the main user-facing tool
 ├── analyzer/       # AI code analysis engine (Claude Agent SDK)
+│                   # Multi-stage pipeline: static parsing → AI agents → structured output
 ├── generator/      # Handlebars MDX templates + site scaffolding
+│                   # Renders analysis results into MDX files
+├── mcp-server/     # Published as @latent-space-labs/open-auto-doc-mcp
+│                   # MCP server — exposes docs to AI assistants
 └── site-template/  # Next.js + Fumadocs template (copied to user projects)
+                    # NOT part of the workspace build
 ```
 
 ### Local development
@@ -244,15 +355,37 @@ packages/
 # Build everything
 npm run build
 
+# Build a single package
+npm run build -w packages/analyzer
+
 # Run the CLI locally
 node packages/cli/dist/index.js
 
 # Or link it globally for testing
 cd packages/cli && npm link
 open-auto-doc --help
+
+# Watch mode for all packages
+npm run dev
 ```
 
-### Releasing
+### How to contribute
+
+1. **Fork the repo** and create a branch from `main`
+2. **Make your changes** — the codebase is ESM-only TypeScript with strict mode
+3. **Build** to verify everything compiles: `npm run build`
+4. **Test locally** by running the CLI against a repo
+5. **Open a PR** with a clear description of what changed and why
+
+### Areas where help is appreciated
+
+- **New analysis agents** — the analyzer supports pluggable agents in `packages/analyzer/src/agents/`
+- **Template improvements** — MDX templates in `packages/generator/src/templates/mdx/`
+- **Language-specific parsing** — better static analysis for specific languages
+- **MCP server features** — additional tools, resources, or transport options
+- **Documentation** — improve this README, add examples, or write guides
+
+### Releasing (maintainers)
 
 ```bash
 npm run release -- patch   # 0.2.0 → 0.2.1
@@ -268,4 +401,4 @@ Pushing a `v*` tag triggers the GitHub Actions workflow that publishes to npm.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
