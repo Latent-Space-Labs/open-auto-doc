@@ -69,6 +69,16 @@ const updatedIndex = indexContent.replace(
 writeFileSync(CLI_INDEX, updatedIndex);
 console.log(`  Updated ${CLI_INDEX} → ${newVersion}`);
 
+// Update version in MCP server source (McpServer version)
+const MCP_SERVER_SRC = "packages/mcp-server/src/server.ts";
+const mcpContent = readFileSync(MCP_SERVER_SRC, "utf-8");
+const updatedMcp = mcpContent.replace(
+  /version: "[^"]+"/,
+  `version: "${newVersion}"`,
+);
+writeFileSync(MCP_SERVER_SRC, updatedMcp);
+console.log(`  Updated ${MCP_SERVER_SRC} → ${newVersion}`);
+
 // Git commit and tag
 console.log(`\nCreating git commit and tag v${newVersion}...`);
 execSync(`git add -A`, { stdio: "inherit" });
