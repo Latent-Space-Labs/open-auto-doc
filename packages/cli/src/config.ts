@@ -9,6 +9,7 @@ export interface AutodocConfig {
     htmlUrl: string;
   }>;
   outputDir: string;
+  projectName?: string;
   docsRepo?: string;
 }
 

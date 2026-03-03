@@ -60,9 +60,10 @@ export async function createAndPushDocsRepo(params: {
   }
 
   const isOrg = owner !== username;
-  const defaultName = config?.repos?.[0]
-    ? `${config.repos[0].name}-docs`
-    : "my-project-docs";
+  const slug = config?.projectName
+    ? config.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+    : config?.repos?.[0]?.name;
+  const defaultName = slug ? `${slug}-docs` : "my-project-docs";
 
   const repoName = await p.text({
     message: "Name for the docs GitHub repo:",

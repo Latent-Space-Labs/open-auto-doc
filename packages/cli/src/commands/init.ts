@@ -53,6 +53,25 @@ export async function initCommand(options: { output?: string }) {
   const repos = await pickRepos(token);
   p.log.info(`Selected ${repos.length} ${repos.length === 1 ? "repository" : "repositories"}`);
 
+  // Prompt for project name when multiple repos are selected
+  let projectName: string | undefined;
+  if (repos.length > 1) {
+    const nameInput = await p.text({
+      message: "What would you like to name this project?",
+      placeholder: "My Project",
+      validate: (v) => {
+        if (!v || v.trim().length === 0) return "Project name is required";
+      },
+    });
+
+    if (p.isCancel(nameInput)) {
+      p.cancel("Operation cancelled");
+      process.exit(0);
+    }
+
+    projectName = nameInput as string;
+  }
+
   // Step 3: Anthropic API key
   let apiKey = getAnthropicKey();
   if (!apiKey) {
@@ -192,7 +211,9 @@ export async function initCommand(options: { output?: string }) {
 
   // Step 7: Generate docs site
   const outputDir = path.resolve(options.output || "docs-site");
-  const projectName = results.length === 1 ? results[0].repoName : "My Project";
+  if (!projectName) {
+    projectName = results.length === 1 ? results[0].repoName : "My Project";
+  }
 
   const genSpinner = p.spinner();
 
@@ -231,6 +252,7 @@ export async function initCommand(options: { output?: string }) {
       htmlUrl: r.htmlUrl,
     })),
     outputDir,
+    ...(projectName !== results[0]?.repoName && { projectName }),
   };
   try {
     saveConfig(config);
