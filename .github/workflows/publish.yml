@@ -31,3 +31,8 @@ jobs:
         run: npm publish -w packages/cli --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @latent-space-labs/open-auto-doc-mcp
+        run: npm publish -w packages/mcp-server --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
