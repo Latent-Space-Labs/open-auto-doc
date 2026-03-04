@@ -1,6 +1,6 @@
 {
   "name": "@latent-space-labs/open-auto-doc-mcp",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "MCP server for open-auto-doc — exposes analyzed codebase documentation to Claude Code",
   "type": "module",
   "main": "./dist/index.js",
