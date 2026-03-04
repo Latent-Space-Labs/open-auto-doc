@@ -302,7 +302,15 @@ async function createCiWorkflowsMultiRepo(params: {
       spinner.stop(`Created workflow in ${repo.fullName}`);
     } catch (err: any) {
       spinner.stop(`Failed for ${repo.fullName}`);
-      p.log.warn(`Could not push workflow to ${repo.fullName}: ${err?.message || err}`);
+      if (err?.status === 404) {
+        p.log.warn(
+          `Could not push workflow to ${repo.fullName}: 404 Not Found. ` +
+          `This usually means your GitHub token is missing the "workflow" scope. ` +
+          `Run \`open-auto-doc logout\` then \`open-auto-doc login\` to get a token with updated permissions.`,
+        );
+      } else {
+        p.log.warn(`Could not push workflow to ${repo.fullName}: ${err?.message || err}`);
+      }
     }
   }
 

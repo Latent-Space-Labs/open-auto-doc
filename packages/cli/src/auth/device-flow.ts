@@ -34,7 +34,7 @@ export async function authenticateWithGithub(): Promise<string> {
     },
     body: JSON.stringify({
       client_id: CLIENT_ID,
-      scope: "repo read:user",
+      scope: "repo read:user workflow",
     }),
   });
 
