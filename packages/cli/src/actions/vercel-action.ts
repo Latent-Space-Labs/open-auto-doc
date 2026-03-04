@@ -224,7 +224,34 @@ export async function deployToVercel(
   const projectName = project.name;
   spinner.stop(`Created Vercel project: ${projectName}`);
 
-  // 3. Poll for first deployment
+  // 3. Explicitly trigger a deployment (Vercel doesn't always auto-deploy on project creation)
+  spinner.start("Triggering first deployment...");
+  const { ok: deployOk } = await vercelFetch(
+    "/v13/deployments",
+    token,
+    {
+      method: "POST",
+      teamId,
+      body: {
+        name: projectName,
+        project: projectId,
+        target: "production",
+        gitSource: {
+          type: "github",
+          org: githubOwner,
+          repo: githubRepo,
+          ref: "main",
+        },
+      },
+    },
+  );
+
+  if (!deployOk) {
+    // Non-fatal: the auto-deploy may still kick in, so continue to polling
+    spinner.message("Waiting for deployment...");
+  }
+
+  // 4. Poll for first deployment
   spinner.start("Waiting for first deployment...");
 
   const maxWaitMs = 5 * 60 * 1000; // 5 minutes
