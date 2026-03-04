@@ -21,9 +21,10 @@ import { authenticateVercel, deployToVercel } from "../actions/vercel-action.js"
 import { runBuildCheck } from "../actions/build-check.js";
 import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { setupMcpConfig } from "./setup-mcp.js";
-import { analyzeRepository, analyzeCrossRepos, saveCache, getHeadSha } from "@latent-space-labs/auto-doc-analyzer";
+import { analyzeRepository, analyzeCrossRepos, saveCache, loadCache, getHeadSha } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
+import type { ContentOptions } from "@latent-space-labs/auto-doc-generator";
 import { ProgressTable, buildRepoSummary, formatToolActivity } from "../ui/progress-table.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -428,7 +429,23 @@ export async function initCommand(options: { output?: string }) {
   try {
     genSpinner.start("Writing documentation content...");
     const contentDir = path.join(outputDir, "content", "docs");
-    await writeContent(contentDir, results, crossRepo);
+
+    // Build repoStatus from cache + repo info
+    const contentOptions: ContentOptions = {};
+    if (results.length > 1) {
+      const repoStatus: ContentOptions["repoStatus"] = {};
+      for (const repo of repos) {
+        const cached = loadCache(cacheDir, repo.name);
+        repoStatus[repo.name] = {
+          htmlUrl: repo.htmlUrl,
+          lastAnalyzed: cached?.timestamp,
+          commitSha: cached?.commitSha,
+        };
+      }
+      contentOptions.repoStatus = repoStatus;
+    }
+
+    await writeContent(contentDir, results, crossRepo, undefined, contentOptions);
     await writeMeta(contentDir, results, crossRepo);
     genSpinner.stop("Documentation content written");
   } catch (err) {
@@ -495,7 +512,7 @@ export async function initCommand(options: { output?: string }) {
       "To start the dev server again",
     );
     p.outro("Done!");
-    return;
+    process.exit(0);
   }
 
   // Kill dev server before deploying
@@ -516,11 +533,11 @@ export async function initCommand(options: { output?: string }) {
       "Next steps",
     );
     p.outro("Done!");
-    return;
+    process.exit(0);
   }
 
   // Vercel deploy (if opted in during config phase)
-  let vercelDeployed = false;
+  let vercelDeploymentUrl: string | undefined;
   if (wantsVercel && vercelToken) {
     const vercelResult = await deployToVercel({
       token: vercelToken,
@@ -532,7 +549,7 @@ export async function initCommand(options: { output?: string }) {
     });
     if (vercelResult) {
       p.log.success(`Live at: ${vercelResult.deploymentUrl}`);
-      vercelDeployed = true;
+      vercelDeploymentUrl = vercelResult.deploymentUrl;
     }
   }
 
@@ -550,13 +567,33 @@ export async function initCommand(options: { output?: string }) {
         config,
         branch: ciBranch,
       });
+
+      // Save CI info to config
+      config.ciEnabled = true;
+      config.ciBranch = ciBranch || "main";
+      try {
+        saveConfig(config);
+      } catch {
+        // Non-critical
+      }
     }
   }
 
-  if (!vercelDeployed) {
+  // Show final summary with all relevant URLs
+  const docsRepoUrl = `https://github.com/${deployResult.owner}/${deployResult.repoName}`;
+
+  if (vercelDeploymentUrl) {
+    p.note(
+      `Docs repo:  ${docsRepoUrl}\nLive site:  ${vercelDeploymentUrl}`,
+      "Your documentation is ready!",
+    );
+    p.outro(vercelDeploymentUrl);
+  } else {
     showVercelInstructions(deployResult.owner, deployResult.repoName);
+    p.outro(`Docs repo: ${docsRepoUrl}`);
   }
-  p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
+
+  process.exit(0);
 }
 
 function resolveTemplateDir(): string {

@@ -5,6 +5,18 @@ import { fileURLToPath } from "node:url";
 import type { AnalysisResult, ChangelogEntry, CrossRepoAnalysis } from "./types.js";
 import { escapeMdxOutsideCode } from "./mdx-escape.js";
 
+export interface RepoStatus {
+  htmlUrl?: string;
+  ciEnabled?: boolean;
+  ciBranch?: string;
+  lastAnalyzed?: string;
+  commitSha?: string;
+}
+
+export interface ContentOptions {
+  repoStatus?: Record<string, RepoStatus>;
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Register helpers
@@ -64,6 +76,7 @@ export async function writeContent(
   results: AnalysisResult[],
   crossRepo?: CrossRepoAnalysis,
   changelogs?: Map<string, ChangelogEntry>,
+  options?: ContentOptions,
 ): Promise<void> {
   loadTemplates();
 
@@ -76,7 +89,7 @@ export async function writeContent(
   } else {
     // Multiple repos — each in its own subdirectory
     // Write a root index that links to all repos
-    await writeMultiRepoIndex(contentDir, results);
+    await writeMultiRepoIndex(contentDir, results, options?.repoStatus);
 
     // Write cross-repo analysis page
     if (crossRepo && templates["cross-repo"]) {
@@ -94,7 +107,11 @@ export async function writeContent(
   }
 }
 
-async function writeMultiRepoIndex(contentDir: string, results: AnalysisResult[]): Promise<void> {
+async function writeMultiRepoIndex(
+  contentDir: string,
+  results: AnalysisResult[],
+  repoStatus?: Record<string, RepoStatus>,
+): Promise<void> {
   const repoCards = results.map((r) => {
     const slug = slugify(r.repoName);
     const stack = r.architecture.techStack.slice(0, 5).join(", ");
@@ -104,7 +121,24 @@ async function writeMultiRepoIndex(contentDir: string, results: AnalysisResult[]
       r.dataModels.length > 0 ? `${r.dataModels.length} data models` : null,
     ].filter(Boolean).join(" · ");
 
-    return `### [${r.repoName}](/docs/${slug})\n\n${r.architecture.summary.split("\n")[0]}\n\n**Stack:** ${stack || "N/A"}${stats ? `\n\n${stats}` : ""}`;
+    // Build status line from repoStatus metadata
+    const status = repoStatus?.[r.repoName];
+    const statusParts: string[] = [];
+    if (status?.lastAnalyzed) {
+      const date = new Date(status.lastAnalyzed).toLocaleDateString("en-US", {
+        year: "numeric", month: "short", day: "numeric",
+      });
+      statusParts.push(`Last analyzed: ${date}`);
+    }
+    if (status?.ciEnabled) {
+      statusParts.push(`CI: auto-sync on \`${status.ciBranch || "main"}\``);
+    }
+    if (status?.htmlUrl) {
+      statusParts.push(`[GitHub](${status.htmlUrl})`);
+    }
+    const statusLine = statusParts.length > 0 ? `\n\n${statusParts.join(" · ")}` : "";
+
+    return `### [${r.repoName}](/docs/${slug})\n\n${r.architecture.summary.split("\n")[0]}\n\n**Stack:** ${stack || "N/A"}${stats ? `\n\n${stats}` : ""}${statusLine}`;
   }).join("\n\n---\n\n");
 
   const mdx = `---

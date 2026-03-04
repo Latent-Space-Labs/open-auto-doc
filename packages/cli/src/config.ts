@@ -12,6 +12,8 @@ export interface AutodocConfig {
   projectName?: string;
   docsRepo?: string;
   vercelUrl?: string;
+  ciEnabled?: boolean;
+  ciBranch?: string;
 }
 
 export function loadConfig(): AutodocConfig | null {

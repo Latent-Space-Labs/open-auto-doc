@@ -14,6 +14,7 @@ import {
 } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, ChangelogEntry, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
+import type { ContentOptions } from "@latent-space-labs/auto-doc-generator";
 import { ProgressTable, buildRepoSummary, formatToolActivity } from "../ui/progress-table.js";
 import { runBuildCheck } from "../actions/build-check.js";
 
@@ -247,7 +248,25 @@ export async function generateCommand(options: GenerateOptions) {
 
     // Phase 4: Generate docs
     const contentDir = path.join(config.outputDir, "content", "docs");
-    await writeContent(contentDir, results, crossRepo, changelogs.size > 0 ? changelogs : undefined);
+
+    // Build repoStatus from config + cache
+    const contentOptions: ContentOptions = {};
+    if (results.length > 1) {
+      const repoStatus: ContentOptions["repoStatus"] = {};
+      for (const repo of config.repos) {
+        const cached = loadCache(cacheDir, repo.name);
+        repoStatus[repo.name] = {
+          htmlUrl: repo.htmlUrl,
+          ciEnabled: config.ciEnabled,
+          ciBranch: config.ciBranch,
+          lastAnalyzed: cached?.timestamp,
+          commitSha: cached?.commitSha,
+        };
+      }
+      contentOptions.repoStatus = repoStatus;
+    }
+
+    await writeContent(contentDir, results, crossRepo, changelogs.size > 0 ? changelogs : undefined, contentOptions);
     await writeMeta(contentDir, results, crossRepo, changelogs.size > 0 ? changelogs : undefined);
 
     // Build quality check — verifies MDX compiles, auto-fixes errors
@@ -265,4 +284,5 @@ export async function generateCommand(options: GenerateOptions) {
   }
 
   p.outro("Done!");
+  process.exit(0);
 }
