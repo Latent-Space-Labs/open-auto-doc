@@ -4,6 +4,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, type ChildProcess } from "node:child_process";
+import { Octokit } from "@octokit/rest";
 import { authenticateWithGithub } from "../auth/device-flow.js";
 import {
   getAnthropicKey,
@@ -20,7 +21,7 @@ import { authenticateVercel, deployToVercel } from "../actions/vercel-action.js"
 import { runBuildCheck } from "../actions/build-check.js";
 import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { setupMcpConfig } from "./setup-mcp.js";
-import { analyzeRepository, analyzeCrossRepos } from "@latent-space-labs/auto-doc-analyzer";
+import { analyzeRepository, analyzeCrossRepos, saveCache, getHeadSha } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 import { ProgressTable, buildRepoSummary, formatToolActivity } from "../ui/progress-table.js";
@@ -41,7 +42,11 @@ export async function initCommand(options: { output?: string }) {
     process.exit(1);
   }
 
-  // Step 1: GitHub authentication
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 1: CONFIGURATION — collect all answers before doing any work
+  // ═══════════════════════════════════════════════════════════════════
+
+  // --- GitHub authentication ---
   let token = getGithubToken();
   if (!token) {
     p.log.info("Let's connect your GitHub account.");
@@ -51,11 +56,11 @@ export async function initCommand(options: { output?: string }) {
     p.log.success("Using saved GitHub credentials.");
   }
 
-  // Step 2: Select repositories
+  // --- Select repositories ---
   const repos = await pickRepos(token);
   p.log.info(`Selected ${repos.length} ${repos.length === 1 ? "repository" : "repositories"}`);
 
-  // Prompt for project name when multiple repos are selected
+  // --- Project name (multi-repo only) ---
   let projectName: string | undefined;
   if (repos.length > 1) {
     const nameInput = await p.text({
@@ -74,7 +79,7 @@ export async function initCommand(options: { output?: string }) {
     projectName = nameInput as string;
   }
 
-  // Step 3: Anthropic API key
+  // --- Anthropic API key ---
   let apiKey = getAnthropicKey();
   if (!apiKey) {
     const keyInput = await p.text({
@@ -103,7 +108,7 @@ export async function initCommand(options: { output?: string }) {
     p.log.success("Using saved Anthropic API key.");
   }
 
-  // Step 4: Model selection
+  // --- Model selection ---
   const model = (await p.select({
     message: "Which model should analyze your repos?",
     options: [
@@ -120,7 +125,188 @@ export async function initCommand(options: { output?: string }) {
 
   p.log.info(`Using ${model}`);
 
-  // Step 5: Clone all repos
+  // --- MCP server setup ---
+  const shouldSetupMcp = await p.confirm({
+    message: "Set up MCP server so Claude Code can query your docs?",
+  });
+  const wantsMcp = !p.isCancel(shouldSetupMcp) && shouldSetupMcp;
+
+  // --- Deployment configuration ---
+  const shouldDeploy = await p.confirm({
+    message: "Would you like to deploy your docs to GitHub?",
+  });
+  const wantsDeploy = !p.isCancel(shouldDeploy) && shouldDeploy;
+
+  // Pre-collected deploy settings
+  let deployConfig: { owner: string; repoName: string; visibility: "public" | "private" } | undefined;
+  let vercelToken: string | null = null;
+  let vercelScope: { teamId: string | undefined } | undefined;
+  let wantsVercel = false;
+  let wantsCi = false;
+  let ciBranch: string | undefined;
+
+  if (wantsDeploy) {
+    // Collect GitHub deploy options upfront
+    const octokit = new Octokit({ auth: token });
+    let username: string;
+    try {
+      const { data } = await octokit.rest.users.getAuthenticated();
+      username = data.login;
+    } catch {
+      p.log.error("Failed to fetch GitHub user info.");
+      process.exit(1);
+    }
+
+    let orgs: Array<{ login: string }> = [];
+    try {
+      const { data } = await octokit.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
+      orgs = data;
+    } catch {
+      // If we can't fetch orgs, just offer personal account
+    }
+
+    const ownerOptions = [
+      { value: username, label: username, hint: "Personal account" },
+      ...orgs.map((org) => ({ value: org.login, label: org.login, hint: "Organization" })),
+    ];
+
+    let owner = username;
+    if (ownerOptions.length > 1) {
+      const selected = await p.select({
+        message: "Where should the docs repo be created?",
+        options: ownerOptions,
+      });
+
+      if (p.isCancel(selected)) {
+        p.cancel("Operation cancelled");
+        process.exit(0);
+      }
+      owner = selected as string;
+    }
+
+    const slug = projectName
+      ? projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+      : repos[0]?.name;
+    const defaultName = slug ? `${slug}-docs` : "my-project-docs";
+
+    const repoNameInput = await p.text({
+      message: "Name for the docs GitHub repo:",
+      initialValue: defaultName,
+      validate: (v) => {
+        if (!v || v.length === 0) return "Repo name is required";
+        if (!/^[a-zA-Z0-9._-]+$/.test(v)) return "Invalid repo name";
+      },
+    });
+
+    if (p.isCancel(repoNameInput)) {
+      p.cancel("Operation cancelled");
+      process.exit(0);
+    }
+
+    const visibilityInput = await p.select({
+      message: "Repository visibility:",
+      options: [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" },
+      ],
+    });
+
+    if (p.isCancel(visibilityInput)) {
+      p.cancel("Operation cancelled");
+      process.exit(0);
+    }
+
+    deployConfig = {
+      owner,
+      repoName: repoNameInput as string,
+      visibility: visibilityInput as "public" | "private",
+    };
+
+    // --- Vercel deployment ---
+    const shouldDeployVercel = await p.confirm({
+      message: "Would you like to deploy to Vercel? (auto-deploys on every push)",
+    });
+    wantsVercel = !p.isCancel(shouldDeployVercel) && shouldDeployVercel;
+
+    if (wantsVercel) {
+      vercelToken = await authenticateVercel();
+      if (vercelToken) {
+        // Collect Vercel scope (personal or team)
+        try {
+          const teamsRes = await fetch("https://api.vercel.com/v2/teams", {
+            headers: { Authorization: `Bearer ${vercelToken}` },
+          });
+          const teamsData = (await teamsRes.json()) as any;
+          const teams = teamsData?.teams ?? [];
+
+          if (teams.length > 0) {
+            const userRes = await fetch("https://api.vercel.com/v2/user", {
+              headers: { Authorization: `Bearer ${vercelToken}` },
+            });
+            const userData = (await userRes.json()) as any;
+            const vercelUsername = userData?.user?.username ?? "Personal";
+
+            const scopeOptions = [
+              { value: "__personal__", label: vercelUsername, hint: "Personal account" },
+              ...teams.map((t: any) => ({ value: t.id, label: t.name || t.slug, hint: "Team" })),
+            ];
+
+            const selectedScope = await p.select({
+              message: "Which Vercel scope should own this project?",
+              options: scopeOptions,
+            });
+
+            if (p.isCancel(selectedScope)) {
+              p.cancel("Operation cancelled");
+              process.exit(0);
+            }
+
+            vercelScope = {
+              teamId: selectedScope === "__personal__" ? undefined : (selectedScope as string),
+            };
+          } else {
+            vercelScope = { teamId: undefined };
+          }
+        } catch {
+          // If we can't fetch teams, just use personal scope
+          vercelScope = { teamId: undefined };
+        }
+      } else {
+        wantsVercel = false;
+      }
+    }
+
+    // --- CI setup ---
+    const shouldSetupCi = await p.confirm({
+      message: "Would you like to set up CI to auto-update docs on every push?",
+    });
+    wantsCi = !p.isCancel(shouldSetupCi) && shouldSetupCi;
+
+    if (wantsCi) {
+      const branchInput = await p.text({
+        message: "Which branch should trigger doc updates?",
+        initialValue: "main",
+        validate: (v) => (v.length === 0 ? "Branch name is required" : undefined),
+      });
+
+      if (p.isCancel(branchInput)) {
+        p.cancel("Operation cancelled");
+        process.exit(0);
+      }
+      ciBranch = branchInput as string;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 2: EXECUTION — sit back while everything runs
+  // ═══════════════════════════════════════════════════════════════════
+
+  p.log.step("All configured! Starting analysis and generation...");
+
+  const outputDir = path.resolve(options.output || "docs-site");
+  const cacheDir = path.join(outputDir, ".autodoc-cache");
+
+  // Clone all repos
   const cloneSpinner = p.spinner();
   cloneSpinner.start(`Cloning ${repos.length} repositories...`);
   const clones: ClonedRepo[] = [];
@@ -141,7 +327,7 @@ export async function initCommand(options: { output?: string }) {
     process.exit(1);
   }
 
-  // Step 5: Analyze all repos in parallel
+  // Analyze all repos in parallel
   const total = clones.length;
   const progressTable = new ProgressTable({ repos: clones.map((c) => c.info.name) });
   progressTable.start();
@@ -163,6 +349,14 @@ export async function initCommand(options: { output?: string }) {
           progressTable.update(repoName, { activity: formatToolActivity(event) });
         },
       });
+      // Save analysis cache for MCP server
+      try {
+        const headSha = getHeadSha(cloned.localPath);
+        saveCache(cacheDir, repoName, headSha, result);
+      } catch {
+        // Cache save failure is non-fatal
+      }
+
       progressTable.update(repoName, { status: "done", summary: buildRepoSummary(result) });
       return { repo: repoName, result };
     } catch (err) {
@@ -195,7 +389,7 @@ export async function initCommand(options: { output?: string }) {
     process.exit(1);
   }
 
-  // Step 6: Cross-repo analysis (multi-repo only)
+  // Cross-repo analysis (multi-repo only)
   let crossRepo: CrossRepoAnalysis | undefined;
   if (results.length > 1) {
     const crossSpinner = p.spinner();
@@ -211,8 +405,7 @@ export async function initCommand(options: { output?: string }) {
     }
   }
 
-  // Step 7: Generate docs site
-  const outputDir = path.resolve(options.output || "docs-site");
+  // Generate docs site
   if (!projectName) {
     projectName = results.length === 1 ? results[0].repoName : "My Project";
   }
@@ -274,15 +467,12 @@ export async function initCommand(options: { output?: string }) {
 
   p.log.success("Documentation generated successfully!");
 
-  // Optional MCP server setup
-  const shouldSetupMcp = await p.confirm({
-    message: "Set up MCP server so Claude Code can query your docs?",
-  });
-  if (!p.isCancel(shouldSetupMcp) && shouldSetupMcp) {
+  // MCP server setup (if opted in during config phase)
+  if (wantsMcp) {
     await setupMcpConfig({ outputDir });
   }
 
-  // Start dev server so the user can preview before deciding to deploy
+  // Start dev server so the user can preview
   let devServer: ChildProcess | undefined;
   const devPort = await findFreePort(3000);
 
@@ -295,12 +485,8 @@ export async function initCommand(options: { output?: string }) {
     p.log.info(`  cd ${path.relative(process.cwd(), outputDir)} && npm run dev`);
   }
 
-  // Optional deploy follow-up
-  const shouldDeploy = await p.confirm({
-    message: "Would you like to deploy your docs to GitHub?",
-  });
-
-  if (p.isCancel(shouldDeploy) || !shouldDeploy) {
+  // GitHub deploy (if opted in during config phase)
+  if (!wantsDeploy || !deployConfig) {
     if (devServer) {
       killDevServer(devServer);
     }
@@ -321,6 +507,7 @@ export async function initCommand(options: { output?: string }) {
     token,
     docsDir: outputDir,
     config,
+    preCollected: deployConfig,
   });
 
   if (!deployResult) {
@@ -332,61 +519,39 @@ export async function initCommand(options: { output?: string }) {
     return;
   }
 
-  // Optional Vercel deployment
+  // Vercel deploy (if opted in during config phase)
   let vercelDeployed = false;
-  const shouldDeployVercel = await p.confirm({
-    message: "Would you like to deploy to Vercel? (auto-deploys on every push)",
-  });
+  if (wantsVercel && vercelToken) {
+    const vercelResult = await deployToVercel({
+      token: vercelToken,
+      githubOwner: deployResult.owner,
+      githubRepo: deployResult.repoName,
+      docsDir: outputDir,
+      config,
+      scope: vercelScope,
+    });
+    if (vercelResult) {
+      p.log.success(`Live at: ${vercelResult.deploymentUrl}`);
+      vercelDeployed = true;
+    }
+  }
 
-  if (!p.isCancel(shouldDeployVercel) && shouldDeployVercel) {
-    const vercelToken = await authenticateVercel();
-    if (vercelToken) {
-      const vercelResult = await deployToVercel({
-        token: vercelToken,
-        githubOwner: deployResult.owner,
-        githubRepo: deployResult.repoName,
-        docsDir: outputDir,
+  // CI setup (if opted in during config phase)
+  if (wantsCi) {
+    const gitRoot = getGitRoot();
+    if (!gitRoot) {
+      p.log.warn("Not in a git repository — skipping CI setup. Run `open-auto-doc setup-ci` from your project root later.");
+    } else {
+      await createCiWorkflow({
+        gitRoot,
+        docsRepoUrl: deployResult.repoUrl,
+        outputDir,
+        token,
         config,
+        branch: ciBranch,
       });
-      if (vercelResult) {
-        p.log.success(`Live at: ${vercelResult.deploymentUrl}`);
-        vercelDeployed = true;
-      }
     }
   }
-
-  // Optional CI setup follow-up
-  const shouldSetupCi = await p.confirm({
-    message: "Would you like to set up CI to auto-update docs on every push?",
-  });
-
-  if (p.isCancel(shouldSetupCi) || !shouldSetupCi) {
-    if (!vercelDeployed) {
-      showVercelInstructions(deployResult.owner, deployResult.repoName);
-    }
-    p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
-    return;
-  }
-
-  const gitRoot = getGitRoot();
-  if (!gitRoot) {
-    p.log.warn("Not in a git repository — skipping CI setup. Run `open-auto-doc setup-ci` from your project root later.");
-    if (!vercelDeployed) {
-      showVercelInstructions(deployResult.owner, deployResult.repoName);
-    }
-    p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
-    return;
-  }
-
-  const ciResult = await createCiWorkflow({
-    gitRoot,
-    docsRepoUrl: deployResult.repoUrl,
-    outputDir,
-    token,
-    config,
-  });
-
-  // Secret verification is handled inside createCiWorkflow
 
   if (!vercelDeployed) {
     showVercelInstructions(deployResult.owner, deployResult.repoName);

@@ -160,6 +160,8 @@ export async function createCiWorkflow(params: {
   outputDir: string;
   token?: string;
   config?: AutodocConfig;
+  /** If provided, skip the branch prompt and use this value. */
+  branch?: string;
 }): Promise<CiResult | MultiRepoCiResult | null> {
   const { gitRoot, docsRepoUrl, outputDir, token, config } = params;
 
@@ -169,6 +171,7 @@ export async function createCiWorkflow(params: {
       token,
       config,
       docsRepoUrl,
+      branch: params.branch,
     });
   }
 
@@ -178,13 +181,18 @@ export async function createCiWorkflow(params: {
   p.log.info(`Docs repo: ${docsRepoUrl}`);
   p.log.info(`Output directory: ${relativeOutputDir}`);
 
-  const branch = await p.text({
-    message: "Which branch should trigger doc updates?",
-    initialValue: "main",
-    validate: (v) => (v.length === 0 ? "Branch name is required" : undefined),
-  });
+  let branch: string | symbol;
+  if (params.branch) {
+    branch = params.branch;
+  } else {
+    branch = await p.text({
+      message: "Which branch should trigger doc updates?",
+      initialValue: "main",
+      validate: (v) => (v.length === 0 ? "Branch name is required" : undefined),
+    });
 
-  if (p.isCancel(branch)) return null;
+    if (p.isCancel(branch)) return null;
+  }
 
   // Write workflow file
   const workflowDir = path.join(gitRoot, ".github", "workflows");
@@ -233,6 +241,7 @@ async function createCiWorkflowsMultiRepo(params: {
   token: string;
   config: AutodocConfig;
   docsRepoUrl: string;
+  branch?: string;
 }): Promise<MultiRepoCiResult | null> {
   const { token, config, docsRepoUrl } = params;
   const octokit = new Octokit({ auth: token });
@@ -240,13 +249,18 @@ async function createCiWorkflowsMultiRepo(params: {
   p.log.info(`Setting up CI for ${config.repos.length} repositories`);
   p.log.info(`Docs repo: ${docsRepoUrl}`);
 
-  const branch = await p.text({
-    message: "Which branch should trigger doc updates?",
-    initialValue: "main",
-    validate: (v) => (v.length === 0 ? "Branch name is required" : undefined),
-  });
+  let branch: string | symbol;
+  if (params.branch) {
+    branch = params.branch;
+  } else {
+    branch = await p.text({
+      message: "Which branch should trigger doc updates?",
+      initialValue: "main",
+      validate: (v) => (v.length === 0 ? "Branch name is required" : undefined),
+    });
 
-  if (p.isCancel(branch)) return null;
+    if (p.isCancel(branch)) return null;
+  }
 
   const createdRepos: string[] = [];
   const workflowPath = ".github/workflows/update-docs.yml";

@@ -28,63 +28,81 @@ export async function createAndPushDocsRepo(params: {
   token: string;
   docsDir: string;
   config: AutodocConfig;
+  /** If provided, skip interactive prompts and use these values. */
+  preCollected?: {
+    owner: string;
+    repoName: string;
+    visibility: "public" | "private";
+  };
 }): Promise<DeployResult | null> {
-  const { token, docsDir, config } = params;
+  const { token, docsDir, config, preCollected } = params;
   const octokit = new Octokit({ auth: token });
   const username = await getGitHubUsername(octokit);
 
-  // Fetch user's organizations
-  let orgs: Array<{ login: string }> = [];
-  try {
-    const { data } = await octokit.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
-    orgs = data;
-  } catch {
-    // If we can't fetch orgs, just offer personal account
-  }
+  let owner: string;
+  let repoName: string | symbol;
+  let visibility: string | symbol;
 
-  // Let user pick owner (personal account or org)
-  const ownerOptions = [
-    { value: username, label: username, hint: "Personal account" },
-    ...orgs.map((org) => ({ value: org.login, label: org.login, hint: "Organization" })),
-  ];
+  if (preCollected) {
+    owner = preCollected.owner;
+    repoName = preCollected.repoName;
+    visibility = preCollected.visibility;
+  } else {
+    // Fetch user's organizations
+    let orgs: Array<{ login: string }> = [];
+    try {
+      const { data } = await octokit.rest.orgs.listForAuthenticatedUser({ per_page: 100 });
+      orgs = data;
+    } catch {
+      // If we can't fetch orgs, just offer personal account
+    }
 
-  let owner = username;
-  if (ownerOptions.length > 1) {
-    const selected = await p.select({
-      message: "Where should the docs repo be created?",
-      options: ownerOptions,
+    // Let user pick owner (personal account or org)
+    const ownerOptions = [
+      { value: username, label: username, hint: "Personal account" },
+      ...orgs.map((org) => ({ value: org.login, label: org.login, hint: "Organization" })),
+    ];
+
+    owner = username;
+    if (ownerOptions.length > 1) {
+      const selected = await p.select({
+        message: "Where should the docs repo be created?",
+        options: ownerOptions,
+      });
+
+      if (p.isCancel(selected)) return null;
+      owner = selected as string;
+    }
+
+    const isOrg = owner !== username;
+    const slug = config?.projectName
+      ? config.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+      : config?.repos?.[0]?.name;
+    const defaultName = slug ? `${slug}-docs` : "my-project-docs";
+
+    repoName = await p.text({
+      message: "Name for the docs GitHub repo:",
+      initialValue: defaultName,
+      validate: (v) => {
+        if (!v || v.length === 0) return "Repo name is required";
+        if (!/^[a-zA-Z0-9._-]+$/.test(v)) return "Invalid repo name";
+      },
     });
 
-    if (p.isCancel(selected)) return null;
-    owner = selected as string;
+    if (p.isCancel(repoName)) return null;
+
+    visibility = await p.select({
+      message: "Repository visibility:",
+      options: [
+        { value: "public", label: "Public" },
+        { value: "private", label: "Private" },
+      ],
+    });
+
+    if (p.isCancel(visibility)) return null;
   }
 
   const isOrg = owner !== username;
-  const slug = config?.projectName
-    ? config.projectName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-    : config?.repos?.[0]?.name;
-  const defaultName = slug ? `${slug}-docs` : "my-project-docs";
-
-  const repoName = await p.text({
-    message: "Name for the docs GitHub repo:",
-    initialValue: defaultName,
-    validate: (v) => {
-      if (!v || v.length === 0) return "Repo name is required";
-      if (!/^[a-zA-Z0-9._-]+$/.test(v)) return "Invalid repo name";
-    },
-  });
-
-  if (p.isCancel(repoName)) return null;
-
-  const visibility = await p.select({
-    message: "Repository visibility:",
-    options: [
-      { value: "public", label: "Public" },
-      { value: "private", label: "Private" },
-    ],
-  });
-
-  if (p.isCancel(visibility)) return null;
 
   const spinner = p.spinner();
 

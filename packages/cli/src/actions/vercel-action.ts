@@ -55,8 +55,18 @@ export async function authenticateVercel(): Promise<string | null> {
     p.log.warn("Saved Vercel token is invalid.");
   }
 
-  p.log.info(
-    "Create a Vercel token at: https://vercel.com/account/tokens",
+  p.note(
+    [
+      "To create a Vercel access token:",
+      "",
+      "  1. Go to https://vercel.com/account/settings/tokens",
+      "  2. Click 'Create Token'",
+      "  3. Enter a name (e.g., 'open-auto-doc')",
+      "  4. Select the scope (your personal account or a team)",
+      "  5. Set an expiration (or no expiration for convenience)",
+      "  6. Click 'Create Token' and copy the value",
+    ].join("\n"),
+    "Vercel Token Required",
   );
 
   const tokenInput = await p.text({
@@ -98,6 +108,8 @@ interface DeployParams {
   githubRepo: string;
   docsDir: string;
   config: AutodocConfig;
+  /** If provided, skip the interactive scope prompt and use this team ID (undefined = personal account). */
+  scope?: { teamId: string | undefined };
 }
 
 interface DeployToVercelResult {
@@ -114,35 +126,40 @@ export async function deployToVercel(
 ): Promise<DeployToVercelResult | null> {
   const { token, githubOwner, githubRepo, docsDir, config } = params;
 
-  // 1. Get user info and teams for scope selection
-  const { data: userData } = await vercelFetch<{ user: { id: string; username: string } }>(
-    "/v2/user",
-    token,
-  );
-  const userId = (userData as any).user?.id;
-
-  const { data: teamsData } = await vercelFetch<{ teams: Array<{ id: string; name: string; slug: string }> }>(
-    "/v2/teams",
-    token,
-  );
-  const teams = (teamsData as any).teams ?? [];
-
-  // Let user pick scope
+  // 1. Determine scope (team or personal)
   let teamId: string | undefined;
-  if (teams.length > 0) {
-    const scopeOptions = [
-      { value: "__personal__", label: (userData as any).user?.username ?? "Personal", hint: "Personal account" },
-      ...teams.map((t: any) => ({ value: t.id, label: t.name || t.slug, hint: "Team" })),
-    ];
 
-    const selectedScope = await p.select({
-      message: "Which Vercel scope should own this project?",
-      options: scopeOptions,
-    });
+  if (params.scope) {
+    // Use pre-collected scope
+    teamId = params.scope.teamId;
+  } else {
+    // Interactive scope selection
+    const { data: userData } = await vercelFetch<{ user: { id: string; username: string } }>(
+      "/v2/user",
+      token,
+    );
 
-    if (p.isCancel(selectedScope)) return null;
-    if (selectedScope !== "__personal__") {
-      teamId = selectedScope as string;
+    const { data: teamsData } = await vercelFetch<{ teams: Array<{ id: string; name: string; slug: string }> }>(
+      "/v2/teams",
+      token,
+    );
+    const teams = (teamsData as any).teams ?? [];
+
+    if (teams.length > 0) {
+      const scopeOptions = [
+        { value: "__personal__", label: (userData as any).user?.username ?? "Personal", hint: "Personal account" },
+        ...teams.map((t: any) => ({ value: t.id, label: t.name || t.slug, hint: "Team" })),
+      ];
+
+      const selectedScope = await p.select({
+        message: "Which Vercel scope should own this project?",
+        options: scopeOptions,
+      });
+
+      if (p.isCancel(selectedScope)) return null;
+      if (selectedScope !== "__personal__") {
+        teamId = selectedScope as string;
+      }
     }
   }
 
