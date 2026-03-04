@@ -16,6 +16,7 @@ import { pickRepos } from "../github/repo-picker.js";
 import { saveConfig } from "../config.js";
 import type { AutodocConfig } from "../config.js";
 import { createAndPushDocsRepo, showVercelInstructions } from "../actions/deploy-action.js";
+import { authenticateVercel, deployToVercel } from "../actions/vercel-action.js";
 import { runBuildCheck } from "../actions/build-check.js";
 import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { setupMcpConfig } from "./setup-mcp.js";
@@ -331,13 +332,38 @@ export async function initCommand(options: { output?: string }) {
     return;
   }
 
+  // Optional Vercel deployment
+  let vercelDeployed = false;
+  const shouldDeployVercel = await p.confirm({
+    message: "Would you like to deploy to Vercel? (auto-deploys on every push)",
+  });
+
+  if (!p.isCancel(shouldDeployVercel) && shouldDeployVercel) {
+    const vercelToken = await authenticateVercel();
+    if (vercelToken) {
+      const vercelResult = await deployToVercel({
+        token: vercelToken,
+        githubOwner: deployResult.owner,
+        githubRepo: deployResult.repoName,
+        docsDir: outputDir,
+        config,
+      });
+      if (vercelResult) {
+        p.log.success(`Live at: ${vercelResult.deploymentUrl}`);
+        vercelDeployed = true;
+      }
+    }
+  }
+
   // Optional CI setup follow-up
   const shouldSetupCi = await p.confirm({
     message: "Would you like to set up CI to auto-update docs on every push?",
   });
 
   if (p.isCancel(shouldSetupCi) || !shouldSetupCi) {
-    showVercelInstructions(deployResult.owner, deployResult.repoName);
+    if (!vercelDeployed) {
+      showVercelInstructions(deployResult.owner, deployResult.repoName);
+    }
     p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
     return;
   }
@@ -345,7 +371,9 @@ export async function initCommand(options: { output?: string }) {
   const gitRoot = getGitRoot();
   if (!gitRoot) {
     p.log.warn("Not in a git repository — skipping CI setup. Run `open-auto-doc setup-ci` from your project root later.");
-    showVercelInstructions(deployResult.owner, deployResult.repoName);
+    if (!vercelDeployed) {
+      showVercelInstructions(deployResult.owner, deployResult.repoName);
+    }
     p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
     return;
   }
@@ -360,7 +388,9 @@ export async function initCommand(options: { output?: string }) {
 
   // Secret verification is handled inside createCiWorkflow
 
-  showVercelInstructions(deployResult.owner, deployResult.repoName);
+  if (!vercelDeployed) {
+    showVercelInstructions(deployResult.owner, deployResult.repoName);
+  }
   p.outro(`Docs repo: https://github.com/${deployResult.owner}/${deployResult.repoName}`);
 }
 

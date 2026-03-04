@@ -8,6 +8,7 @@ import {
   pushUpdates,
   showVercelInstructions,
 } from "../actions/deploy-action.js";
+import { authenticateVercel, deployToVercel } from "../actions/vercel-action.js";
 
 interface DeployOptions {
   dir?: string;
@@ -73,6 +74,29 @@ export async function deployCommand(options: DeployOptions) {
   if (!result) {
     p.cancel("Deploy cancelled.");
     process.exit(0);
+  }
+
+  // Offer Vercel deployment
+  const shouldDeployVercel = await p.confirm({
+    message: "Would you like to deploy to Vercel? (auto-deploys on every push)",
+  });
+
+  if (!p.isCancel(shouldDeployVercel) && shouldDeployVercel) {
+    const vercelToken = await authenticateVercel();
+    if (vercelToken) {
+      const vercelResult = await deployToVercel({
+        token: vercelToken,
+        githubOwner: result.owner,
+        githubRepo: result.repoName,
+        docsDir: docsDir,
+        config: config || { repos: [], outputDir: docsDir },
+      });
+      if (vercelResult) {
+        p.log.success(`Live at: ${vercelResult.deploymentUrl}`);
+        p.outro(`Docs repo: https://github.com/${result.owner}/${result.repoName}`);
+        return;
+      }
+    }
   }
 
   showVercelInstructions(result.owner, result.repoName);

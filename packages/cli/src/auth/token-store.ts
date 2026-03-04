@@ -8,6 +8,7 @@ const CREDENTIALS_FILE = path.join(CONFIG_DIR, "credentials.json");
 interface StoredCredentials {
   githubToken?: string;
   anthropicKey?: string;
+  vercelToken?: string;
 }
 
 function ensureConfigDir() {
@@ -55,6 +56,16 @@ export function getAnthropicKey(): string | undefined {
 export function setAnthropicKey(key: string) {
   const creds = readCredentials();
   creds.anthropicKey = key;
+  writeCredentials(creds);
+}
+
+export function getVercelToken(): string | undefined {
+  return process.env.VERCEL_TOKEN || readCredentials().vercelToken;
+}
+
+export function setVercelToken(token: string) {
+  const creds = readCredentials();
+  creds.vercelToken = token;
   writeCredentials(creds);
 }
 

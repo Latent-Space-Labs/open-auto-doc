@@ -11,6 +11,7 @@ export interface AutodocConfig {
   outputDir: string;
   projectName?: string;
   docsRepo?: string;
+  vercelUrl?: string;
 }
 
 export function loadConfig(): AutodocConfig | null {
