@@ -4,6 +4,7 @@ import Handlebars from "handlebars";
 import { fileURLToPath } from "node:url";
 import type { AnalysisResult, ChangelogEntry, CrossRepoAnalysis } from "./types.js";
 import { escapeMdxOutsideCode } from "./mdx-escape.js";
+import { buildGraphData, buildCrossRepoGraphData } from "./graph-data.js";
 
 export interface RepoStatus {
   htmlUrl?: string;
@@ -28,6 +29,35 @@ Handlebars.registerHelper("join", (arr: string[], sep: string) => {
 Handlebars.registerHelper("pipeEscape", (text: string) => {
   if (typeof text !== "string") return "";
   return text.replace(/\|/g, "\\|");
+});
+
+// Serialize endpoint parameters as a JSON array for the ApiPlayground component
+Handlebars.registerHelper("endpointParamsJson", (params: Array<{ name: string; type: string; required: boolean; description: string; location: string }>) => {
+  if (!Array.isArray(params) || params.length === 0) return "[]";
+  const cleaned = params.map((p) => ({
+    name: p.name,
+    type: p.type,
+    required: !!p.required,
+    description: p.description || "",
+    location: p.location || "query",
+  }));
+  return JSON.stringify(cleaned);
+});
+
+// Extract a default body placeholder from requestBody markdown (best-effort)
+// Serialize graph data as JSON for the ForceGraph component
+Handlebars.registerHelper("graphDataJson", function (this: { _graphData?: object }) {
+  return JSON.stringify(this._graphData || { nodes: [], links: [] });
+});
+
+Handlebars.registerHelper("endpointBodyJson", (requestBody: string) => {
+  if (!requestBody || typeof requestBody !== "string") return '""';
+  // Try to extract a JSON code block from the requestBody markdown
+  const codeBlockMatch = requestBody.match(/```(?:json)?\s*\n([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    return JSON.stringify(codeBlockMatch[1].trim());
+  }
+  return '""';
 });
 
 let templatesLoaded = false;
@@ -58,7 +88,7 @@ function loadTemplates() {
     );
   }
 
-  const templateFiles = ["overview", "features", "getting-started", "architecture", "api-endpoint", "component", "data-model", "diagrams", "cross-repo", "configuration", "business-logic", "error-handling", "changelog"];
+  const templateFiles = ["overview", "features", "getting-started", "architecture", "api-endpoint", "component", "data-model", "diagrams", "cross-repo", "configuration", "business-logic", "error-handling", "changelog", "system-graph"];
   for (const name of templateFiles) {
     const filePath = path.join(templateDir, `${name}.hbs`);
     if (fs.existsSync(filePath)) {
@@ -97,6 +127,17 @@ export async function writeContent(
         path.join(contentDir, "cross-repo.mdx"),
         renderTemplate("cross-repo", crossRepo),
       );
+    }
+
+    // Write cross-repo system graph
+    if (crossRepo && templates["system-graph"]) {
+      const graphData = buildCrossRepoGraphData(results, crossRepo);
+      if (graphData.nodes.length > 0) {
+        await fs.writeFile(
+          path.join(contentDir, "system-graph.mdx"),
+          renderTemplate("system-graph", { _graphData: graphData }),
+        );
+      }
     }
 
     for (const result of results) {
@@ -239,6 +280,17 @@ async function writeRepoContent(dir: string, result: AnalysisResult, changelog?:
       path.join(dir, "diagrams.mdx"),
       renderTemplate("diagrams", safeResult),
     );
+  }
+
+  // System Graph
+  if (templates["system-graph"]) {
+    const graphData = buildGraphData(safeResult);
+    if (graphData.nodes.length > 0) {
+      await fs.writeFile(
+        path.join(dir, "system-graph.mdx"),
+        renderTemplate("system-graph", { _graphData: graphData }),
+      );
+    }
   }
 
   // Configuration

@@ -20,6 +20,7 @@ export async function writeMeta(
     // Root meta listing index + cross-repo + all repos
     const pages: string[] = ["index"];
     if (crossRepo) pages.push("cross-repo");
+    if (crossRepo) pages.push("system-graph");
     pages.push(...results.map((r) => slugify(r.repoName)));
 
     const rootMeta: MetaJson = { pages };
@@ -49,6 +50,7 @@ async function writeRepoMeta(dir: string, result: AnalysisResult, changelog?: Ch
   if (result.components.length > 0) pages.push("components");
   if (result.dataModels.length > 0) pages.push("data-models");
   if (result.errorHandling && (result.errorHandling.errorCodes.length > 0 || result.errorHandling.commonErrors.length > 0)) pages.push("error-handling");
+  pages.push("system-graph");
   if (result.diagrams && result.diagrams.length > 0) pages.push("diagrams");
   if (changelog && (changelog.added.length > 0 || changelog.removed.length > 0 || changelog.modified.length > 0)) pages.push("changelog");
 

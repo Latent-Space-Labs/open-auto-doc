@@ -84,6 +84,53 @@ export function escapeMdxOutsideCode(mdx: string): string {
       continue;
     }
 
+    // --- JSX component tag: <Uppercase... /> or <Uppercase>...</Uppercase> ---
+    // Skip escaping inside JSX component tags (element name starts with uppercase)
+    if (mdx[i] === "<" && i + 1 < len && /[A-Z]/.test(mdx[i + 1])) {
+      // Find the end of this JSX element (self-closing /> or opening > then </Name>)
+      const jsxStart = i;
+      // Extract component name
+      let nameEnd = i + 1;
+      while (nameEnd < len && /[A-Za-z0-9_.]/.test(mdx[nameEnd])) nameEnd++;
+      const componentName = mdx.slice(i + 1, nameEnd);
+
+      // Scan for self-closing /> or opening >
+      let depth = 0;
+      let j = i;
+      while (j < len) {
+        if (mdx[j] === "/" && mdx[j + 1] === ">") {
+          // Self-closing tag
+          if (depth === 0) {
+            result.push(mdx.slice(i, j + 2));
+            i = j + 2;
+            break;
+          }
+          j += 2;
+        } else if (mdx[j] === "<" && mdx[j + 1] === "/" && mdx.slice(j + 2, j + 2 + componentName.length) === componentName) {
+          // Closing tag </ComponentName>
+          const closeEnd = mdx.indexOf(">", j + 2 + componentName.length);
+          if (closeEnd !== -1) {
+            result.push(mdx.slice(i, closeEnd + 1));
+            i = closeEnd + 1;
+            break;
+          }
+          j++;
+        } else if (mdx[j] === "<" && j !== jsxStart && j + 1 < len && /[A-Z]/.test(mdx[j + 1])) {
+          // Nested JSX component — track depth
+          depth++;
+          j++;
+        } else if (j === len - 1) {
+          // End of string — push remaining
+          result.push(mdx.slice(i));
+          i = len;
+          break;
+        } else {
+          j++;
+        }
+      }
+      continue;
+    }
+
     // --- Regular text: escape MDX-significant characters ---
     const ch = mdx[i];
     if (ch === "{") {
