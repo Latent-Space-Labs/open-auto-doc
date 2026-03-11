@@ -151,6 +151,8 @@ export function ApiPlayground({
     return "text-red-600 dark:text-red-400";
   };
 
+  const isCorsError = error === "Failed to fetch" || error.toLowerCase().includes("cors") || error.toLowerCase().includes("network");
+
   return (
     <div className="my-4 rounded-lg border border-fd-border bg-fd-card overflow-hidden">
       {/* URL bar */}
@@ -308,7 +310,13 @@ export function ApiPlayground({
       {/* Error */}
       {error && (
         <div className="mx-3 mb-3 rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-400">
-          {error}
+          <div>{error}</div>
+          {isCorsError && (
+            <div className="mt-1.5 text-xs opacity-80">
+              This is likely a <strong>CORS error</strong>. Browser security prevents requests to APIs that don{"'"}t allow cross-origin access.
+              Try running the API locally, using a CORS proxy, or testing with <code className="rounded bg-red-100 px-1 dark:bg-red-900/50">curl</code> instead.
+            </div>
+          )}
         </div>
       )}
 

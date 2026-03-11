@@ -63,16 +63,32 @@ function getLinkId(link: GraphLink): string {
   return `${s}→${t}`;
 }
 
+const LINK_TYPE_COLORS: Record<string, { color: string; label: string }> = {
+  import: { color: "rgba(59, 130, 246, 0.7)", label: "Import" },
+  contains: { color: "rgba(156, 163, 175, 0.5)", label: "Contains" },
+  "api-contract": { color: "rgba(34, 197, 94, 0.7)", label: "API Contract" },
+  relationship: { color: "rgba(249, 115, 22, 0.7)", label: "Relationship" },
+  serves: { color: "rgba(34, 197, 94, 0.6)", label: "Serves" },
+  "depends-on": { color: "rgba(107, 114, 128, 0.5)", label: "Depends On" },
+  "implemented-by": { color: "rgba(236, 72, 153, 0.7)", label: "Implemented By" },
+  "shared-dep": { color: "rgba(107, 114, 128, 0.45)", label: "Shared Dep" },
+  integration: { color: "rgba(168, 85, 247, 0.6)", label: "Integration" },
+};
+
 export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const fgRef = useRef<{ centerAt: (x: number, y: number, ms: number) => void; zoom: (k: number, ms: number) => void } | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height });
   const [hoverNode, setHoverNode] = useState<GraphNode | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [isDark, setIsDark] = useState(false);
   const [hiddenTypes, setHiddenTypes] = useState<Set<NodeType>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showLinkLegend, setShowLinkLegend] = useState(false);
   const highlightNodes = useRef(new Set<string>());
   const highlightLinks = useRef(new Set<string>());
+  const searchMatchIds = useRef(new Set<string>());
 
   // Detect dark mode via MutationObserver on <html> class
   useEffect(() => {
@@ -134,6 +150,38 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
     });
   }, []);
 
+  // Update search match set and focus on first match
+  useEffect(() => {
+    searchMatchIds.current.clear();
+    if (!searchQuery.trim()) return;
+
+    const q = searchQuery.toLowerCase();
+    for (const node of filteredGraphData.nodes) {
+      if (node.name.toLowerCase().includes(q) || node.description.toLowerCase().includes(q)) {
+        searchMatchIds.current.add(node.id);
+      }
+    }
+
+    // Center on the first match
+    if (searchMatchIds.current.size > 0 && fgRef.current) {
+      const firstId = searchMatchIds.current.values().next().value;
+      const node = filteredGraphData.nodes.find((n) => n.id === firstId);
+      if (node?.x != null && node?.y != null) {
+        fgRef.current.centerAt(node.x, node.y, 400);
+        fgRef.current.zoom(2, 400);
+      }
+    }
+  }, [searchQuery, filteredGraphData.nodes]);
+
+  // All unique link types from the data
+  const allLinkTypes = useMemo(() => {
+    const types = new Set<string>();
+    for (const l of graphData.links) {
+      types.add(l.type);
+    }
+    return types;
+  }, [graphData.links]);
+
   const updateHighlight = useCallback(
     (node: GraphNode | null) => {
       highlightNodes.current.clear();
@@ -183,6 +231,8 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
   const nodeCanvasObject = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const isHighlighted = highlightNodes.current.size === 0 || highlightNodes.current.has(node.id);
+      const isSearchMatch = searchMatchIds.current.size > 0 && searchMatchIds.current.has(node.id);
+      const isDimmedBySearch = searchMatchIds.current.size > 0 && !isSearchMatch;
       const radius = Math.max(Math.sqrt(node.val || 1) * 3, 4);
       const fontSize = Math.max(10 / globalScale, 1);
       const x = node.x ?? 0;
@@ -191,12 +241,21 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
       // Node circle
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = isHighlighted ? node.color : `${node.color}40`;
+      ctx.fillStyle = isDimmedBySearch ? `${node.color}20` : isHighlighted ? node.color : `${node.color}40`;
       ctx.fill();
 
       if (isHighlighted && highlightNodes.current.size > 0) {
         ctx.strokeStyle = node.color;
         ctx.lineWidth = 1.5 / globalScale;
+        ctx.stroke();
+      }
+
+      // Search match ring
+      if (isSearchMatch) {
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 3 / globalScale, 0, 2 * Math.PI);
+        ctx.strokeStyle = "#facc15";
+        ctx.lineWidth = 2 / globalScale;
         ctx.stroke();
       }
 
@@ -209,12 +268,12 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
         ctx.stroke();
       }
 
-      // Label (only show when zoomed in enough or highlighted)
-      if (globalScale > 0.8 || (highlightNodes.current.has(node.id) && highlightNodes.current.size > 0)) {
-        ctx.font = `${fontSize}px sans-serif`;
+      // Label (only show when zoomed in enough, highlighted, or search match)
+      if (globalScale > 0.8 || isSearchMatch || (highlightNodes.current.has(node.id) && highlightNodes.current.size > 0)) {
+        ctx.font = `${isSearchMatch ? "bold " : ""}${fontSize}px sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle = isHighlighted ? labelColor : labelColorDim;
+        ctx.fillStyle = isDimmedBySearch ? labelColorDim : isHighlighted ? labelColor : labelColorDim;
         ctx.fillText(node.name, x, y + radius + 2 / globalScale);
       }
     },
@@ -330,30 +389,79 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
 
   return (
     <div ref={containerRef} className="my-4 relative rounded-lg border bg-fd-card overflow-hidden">
-      {/* Legend with filter toggles */}
-      <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-2 rounded-md bg-fd-background/80 backdrop-blur px-3 py-2 text-xs">
-        {Array.from(allTypes.entries()).map(([type, color]) => {
-          const isHidden = hiddenTypes.has(type);
-          return (
-            <button
-              key={type}
-              onClick={() => toggleType(type)}
-              className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 transition-opacity ${
-                isHidden ? "opacity-40 line-through" : "opacity-100"
-              } hover:bg-fd-muted`}
-              title={isHidden ? `Show ${TYPE_LABELS[type]}` : `Hide ${TYPE_LABELS[type]}`}
-            >
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: isHidden ? "#9ca3af" : color }}
-              />
-              {TYPE_LABELS[type] || type}
-            </button>
-          );
-        })}
+      {/* Controls overlay */}
+      <div className="absolute top-3 left-3 z-10 flex flex-col gap-2">
+        {/* Search input */}
+        <div className="rounded-md bg-fd-background/80 backdrop-blur px-3 py-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search nodes..."
+            className="w-44 rounded border border-fd-border bg-fd-background px-2 py-1 text-xs font-mono text-fd-foreground placeholder:text-fd-muted-foreground focus:outline-none focus:ring-1 focus:ring-fd-ring"
+          />
+          {searchQuery && (
+            <span className="ml-2 text-xs text-fd-muted-foreground">
+              {searchMatchIds.current.size} match{searchMatchIds.current.size !== 1 ? "es" : ""}
+            </span>
+          )}
+        </div>
+
+        {/* Node type legend with filter toggles */}
+        <div className="flex flex-wrap gap-2 rounded-md bg-fd-background/80 backdrop-blur px-3 py-2 text-xs">
+          {Array.from(allTypes.entries()).map(([type, color]) => {
+            const isHidden = hiddenTypes.has(type);
+            return (
+              <button
+                key={type}
+                onClick={() => toggleType(type)}
+                className={`flex items-center gap-1.5 rounded px-1.5 py-0.5 transition-opacity ${
+                  isHidden ? "opacity-40 line-through" : "opacity-100"
+                } hover:bg-fd-muted`}
+                title={isHidden ? `Show ${TYPE_LABELS[type]}` : `Hide ${TYPE_LABELS[type]}`}
+              >
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: isHidden ? "#9ca3af" : color }}
+                />
+                {TYPE_LABELS[type] || type}
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowLinkLegend((v) => !v)}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 transition-opacity hover:bg-fd-muted ${showLinkLegend ? "opacity-100 bg-fd-muted" : "opacity-60"}`}
+            title="Toggle link type legend"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M2 6h8M8 3l2 3-2 3" />
+            </svg>
+            Links
+          </button>
+        </div>
+
+        {/* Link type legend */}
+        {showLinkLegend && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-fd-background/80 backdrop-blur px-3 py-2 text-xs">
+            {Array.from(allLinkTypes).map((type) => {
+              const info = LINK_TYPE_COLORS[type];
+              if (!info) return null;
+              return (
+                <span key={type} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-0.5 w-3 rounded shrink-0"
+                    style={{ backgroundColor: info.color }}
+                  />
+                  <span className="text-fd-muted-foreground">{info.label}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <ForceGraph2D
+        ref={fgRef}
         graphData={filteredGraphData}
         width={dimensions.width}
         height={dimensions.height}
