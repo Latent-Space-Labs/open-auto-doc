@@ -38,7 +38,7 @@ jobs:
 
       - name: Clone docs repo
         run: |
-          git clone https://x-access-token:${{ secrets.DOCS_DEPLOY_TOKEN }}@github.com/Latent-Space-Labs/open-auto-doc-docs-2.git docs-repo
+          git clone https://x-access-token:${{ secrets.DOCS_DEPLOY_TOKEN }}@github.com/Latent-Space-Labs/open-auto-doc-docs2.git docs-repo
 
       - name: Copy updated content
         run: |

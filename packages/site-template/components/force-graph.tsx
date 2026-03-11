@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
+type NodeObject = { id?: string | number; x?: number; y?: number; [others: string]: any };
+type LinkObject = { source?: string | number | NodeObject; target?: string | number | NodeObject; [others: string]: any };
+
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
   loading: () => (
@@ -203,23 +206,31 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
     [filteredGraphData.links],
   );
 
+  // Track mouse position for tooltip since onNodeHover doesn't provide events
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: MouseEvent) => setTooltipPos({ x: e.clientX, y: e.clientY });
+    el.addEventListener("mousemove", handler);
+    return () => el.removeEventListener("mousemove", handler);
+  }, []);
+
   const handleNodeHover = useCallback(
-    (node: GraphNode | null, event?: MouseEvent) => {
-      updateHighlight(node);
-      setHoverNode(node);
-      if (event && node) {
-        setTooltipPos({ x: event.clientX, y: event.clientY });
-      }
+    (node: NodeObject | null, _previousNode: NodeObject | null) => {
+      const gNode = node as GraphNode | null;
+      updateHighlight(gNode);
+      setHoverNode(gNode);
     },
     [updateHighlight],
   );
 
   const handleNodeClick = useCallback(
-    (node: GraphNode) => {
-      if (node.docPath) {
+    (node: NodeObject, _event: MouseEvent) => {
+      const gNode = node as GraphNode;
+      if (gNode.docPath) {
         // Navigate relative to current docs path
         const basePath = window.location.pathname.replace(/\/system-graph\/?$/, "");
-        router.push(`${basePath}/${node.docPath}`);
+        router.push(`${basePath}/${gNode.docPath}`);
       }
     },
     [router],
@@ -229,7 +240,8 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
   const labelColorDim = "#9ca3af";
 
   const nodeCanvasObject = useCallback(
-    (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (nodeObj: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const node = nodeObj as GraphNode;
       const isHighlighted = highlightNodes.current.size === 0 || highlightNodes.current.has(node.id);
       const isSearchMatch = searchMatchIds.current.size > 0 && searchMatchIds.current.has(node.id);
       const isDimmedBySearch = searchMatchIds.current.size > 0 && !isSearchMatch;
@@ -281,7 +293,8 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
   );
 
   const linkCanvasObject = useCallback(
-    (link: GraphLink, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (linkObj: LinkObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const link = linkObj as GraphLink;
       const linkId = getLinkId(link);
       const isHighlighted = highlightLinks.current.size === 0 || highlightLinks.current.has(linkId);
 
@@ -466,15 +479,16 @@ export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
         width={dimensions.width}
         height={dimensions.height}
         nodeCanvasObject={nodeCanvasObject}
-        nodePointerAreaPaint={(node: GraphNode, color: string, ctx: CanvasRenderingContext2D) => {
-          const radius = Math.max(Math.sqrt(node.val || 1) * 3, 4);
+        nodePointerAreaPaint={(node: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
+          const gNode = node as GraphNode;
+          const radius = Math.max(Math.sqrt(gNode.val || 1) * 3, 4);
           ctx.beginPath();
-          ctx.arc(node.x ?? 0, node.y ?? 0, radius + 2, 0, 2 * Math.PI);
+          ctx.arc(gNode.x ?? 0, gNode.y ?? 0, radius + 2, 0, 2 * Math.PI);
           ctx.fillStyle = color;
           ctx.fill();
         }}
         linkCanvasObject={linkCanvasObject}
-        linkPointerAreaPaint={(link: GraphLink, color: string, ctx: CanvasRenderingContext2D) => {
+        linkPointerAreaPaint={(link: LinkObject, color: string, ctx: CanvasRenderingContext2D) => {
           const source = link.source as GraphNode;
           const target = link.target as GraphNode;
           if (!source.x || !target.x) return;

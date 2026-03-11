@@ -30,30 +30,58 @@ function runBuild(docsDir: string): { success: boolean; output: string } {
   }
 }
 
-function truncateErrors(output: string, max = 8000): string {
+function truncateErrors(output: string, max = 16000): string {
   if (output.length <= max) return output;
   return output.slice(0, max) + "\n\n... (truncated)";
 }
 
 /** Extract the most relevant error lines from build output */
-function extractErrorSummary(output: string, maxLines = 30): string {
+function extractErrorSummary(output: string, maxLines = 80): string {
   const lines = output.split("\n");
   const errorLines: string[] = [];
+  let capturing = false;
+  let blankCount = 0;
 
   for (const line of lines) {
-    // Capture lines with error indicators
-    if (
-      /error/i.test(line) ||
-      /failed/i.test(line) ||
+    const isErrorLine =
+      /error\s*(\(|:|\[)/i.test(line) ||
+      /TS\d{4}:/i.test(line) ||
       /Error:|SyntaxError|TypeError|ReferenceError/i.test(line) ||
-      /at\s+/.test(line) ||
       /Caused by:/.test(line) ||
-      /^\s*\d+\s*\|/.test(line) || // source line numbers from build output
-      /^\s*>/.test(line) ||        // pointer lines
-      /Expected|Unexpected|Invalid|Unterminated/i.test(line)
-    ) {
+      /Type '.*' is not assignable/i.test(line) ||
+      /Property '.*' is missing/i.test(line) ||
+      /Overload \d+ of \d+/i.test(line) ||
+      /Types of parameters/i.test(line) ||
+      /Expected|Unexpected|Invalid|Unterminated/i.test(line);
+
+    const isContextLine =
+      /^\s*\d+\s*\|/.test(line) ||  // source line numbers from build output
+      /^\s*>/.test(line) ||          // pointer lines
+      /^\s+at\s+/.test(line) ||      // stack traces
+      /failed/i.test(line);
+
+    if (isErrorLine) {
+      capturing = true;
+      blankCount = 0;
+    }
+
+    if (capturing) {
+      if (line.trim() === "") {
+        blankCount++;
+        // Stop capturing after 2 consecutive blanks (end of error block)
+        if (blankCount >= 2) {
+          capturing = false;
+          continue;
+        }
+      } else {
+        blankCount = 0;
+      }
+      errorLines.push(line);
+    } else if (isContextLine) {
       errorLines.push(line);
     }
+
+    if (errorLines.length >= maxLines) break;
   }
 
   if (errorLines.length === 0) {
@@ -61,11 +89,11 @@ function extractErrorSummary(output: string, maxLines = 30): string {
     return lines.slice(-maxLines).join("\n");
   }
 
-  return errorLines.slice(0, maxLines).join("\n");
+  return errorLines.join("\n");
 }
 
 export async function runBuildCheck(options: BuildCheckOptions): Promise<BuildCheckResult> {
-  const { docsDir, apiKey, model, maxAttempts = 3 } = options;
+  const { docsDir, apiKey, model, maxAttempts = 10 } = options;
 
   const spinner = p.spinner();
   spinner.start("Verifying documentation build...");
