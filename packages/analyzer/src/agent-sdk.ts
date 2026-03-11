@@ -159,18 +159,17 @@ async function runAgentCore<T>(options: AgentQueryOptions): Promise<T> {
         if (block.type === "text" && block.text) {
           // Detect credit/billing errors in agent output and fail fast
           // Only check the first line to avoid false positives from agent analysis text
-          const firstLine = block.text.split("\n")[0].trim();
+          const textFirstLine = block.text.split("\n")[0].trim();
           for (const pattern of CREDIT_ERROR_PATTERNS) {
-            if (pattern.test(firstLine)) {
-              throw new AgentError("credit_error", `API credit issue detected: ${firstLine.slice(0, 120)}`);
+            if (pattern.test(textFirstLine)) {
+              throw new AgentError("credit_error", `API credit issue detected: ${textFirstLine.slice(0, 120)}`);
             }
           }
 
           if (options.onAgentMessage) {
-            const firstLine = text.split("\n")[0].trim();
-            if (!firstLine || FILLER_PATTERNS.test(firstLine) || firstLine === lastMessage) continue;
-            lastMessage = firstLine;
-            options.onAgentMessage(truncateAtWord(firstLine, 80));
+            if (!textFirstLine || FILLER_PATTERNS.test(textFirstLine) || textFirstLine === lastMessage) continue;
+            lastMessage = textFirstLine;
+            options.onAgentMessage(truncateAtWord(textFirstLine, 80));
           }
         }
         if (block.type === "tool_use" && options.onToolUse) {

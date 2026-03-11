@@ -62,7 +62,7 @@ function buildFileToModuleMap(
     }
 
     if (mod.files.length > 0) {
-      const dirs = mod.files.map((f) => {
+      const dirs = mod.files.map((f: string) => {
         const lastSlash = f.lastIndexOf("/");
         return lastSlash >= 0 ? f.slice(0, lastSlash + 1) : "";
       }).filter(Boolean);
@@ -122,8 +122,8 @@ function buildClusterToArchModuleMap(
       const modId = `${idPrefix}module-${slugify(mod.name)}`;
       if (!nodeIds.has(modId)) continue;
 
-      const overlap = cluster.files.filter((f) =>
-        mod.files.some((mf) => f === mf || f.startsWith(mf) || mf.startsWith(f)),
+      const overlap = cluster.files.filter((f: string) =>
+        mod.files.some((mf: string) => f === mf || f.startsWith(mf) || mf.startsWith(f)),
       ).length;
 
       if (overlap > bestOverlap) {
@@ -265,12 +265,12 @@ function addRepoInternals(
         id,
         name: `/${base}`,
         type: "api",
-        description: `${endpoints.length} endpoint${endpoints.length > 1 ? "s" : ""}: ${endpoints.map((e) => `${e.method} ${e.path}`).slice(0, 3).join(", ")}${endpoints.length > 3 ? "..." : ""}`,
+        description: `${endpoints.length} endpoint${endpoints.length > 1 ? "s" : ""}: ${endpoints.map((e: { method: string; path: string }) => `${e.method} ${e.path}`).slice(0, 3).join(", ")}${endpoints.length > 3 ? "..." : ""}`,
         val: Math.max(endpoints.length, 2),
         color: NODE_COLORS.api,
         docPath: `${docPathPrefix}api`,
         group,
-        metadata: { endpoints: endpoints.map((e) => `${e.method} ${e.path}`) },
+        metadata: { endpoints: endpoints.map((e: { method: string; path: string }) => `${e.method} ${e.path}`) },
       });
     }
   }
@@ -397,7 +397,7 @@ function addRepoInternals(
       for (const mod of result.architecture.modules) {
         const modId = `${idPrefix}module-${slugify(mod.name)}`;
         if (!b.nodeIds.has(modId)) continue;
-        const hasRouteFile = mod.files.some((f) => {
+        const hasRouteFile = mod.files.some((f: string) => {
           const lower = f.toLowerCase();
           return lower.includes(`/${basePath}/`) || lower.includes(`/${basePath}.`) ||
             lower.includes("routes") || lower.includes("controllers") || lower.includes("handlers");
