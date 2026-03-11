@@ -8,7 +8,7 @@ export function createServer(results: AnalysisResult[]): McpServer {
 
   const server = new McpServer({
     name: "open-auto-doc",
-    version: "0.5.7",
+    version: "0.5.8",
   }, {
     instructions: `This server provides documentation for: ${repoNames}. ` +
       `Use the tools to query project architecture, API endpoints, components, data models, diagrams, and business rules. ` +

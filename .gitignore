@@ -10,3 +10,4 @@ coverage/
 .autodocrc.json
 .source/
 docs-site/
+.playwright-mcp/
