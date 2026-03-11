@@ -6,6 +6,7 @@ export async function scaffoldSite(
   outputDir: string,
   projectName: string,
   templateDir: string,
+  cliVersion?: string,
 ): Promise<void> {
   // Copy site template to output dir
   await fs.copy(templateDir, outputDir, {
@@ -27,8 +28,16 @@ export async function scaffoldSite(
   for (const filePath of filesToProcess) {
     try {
       let content = await fs.readFile(filePath, "utf-8");
+      let changed = false;
       if (content.includes("{{projectName}}")) {
         content = content.replace(/\{\{projectName\}\}/g, projectName);
+        changed = true;
+      }
+      if (cliVersion && content.includes("{{cliVersion}}")) {
+        content = content.replace(/\{\{cliVersion\}\}/g, cliVersion);
+        changed = true;
+      }
+      if (changed) {
         await fs.writeFile(filePath, content, "utf-8");
       }
     } catch {

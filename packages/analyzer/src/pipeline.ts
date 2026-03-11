@@ -47,13 +47,18 @@ export async function analyzeRepository(options: AnalyzerOptions): Promise<Analy
 
   onProgress?.("static", `Found ${totalFiles} files, ${languages.length} languages, ${importGraph.edges.length} import edges`);
 
-  // Repo init: generate CLAUDE.md if missing
+  // Repo init: generate CLAUDE.md if missing (non-fatal — analysis works without it)
   if (!skipInit) {
     onProgress?.("init", "Checking for project context...");
-    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
-    if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
-      staticAnalysis.claudeMd = updated.claudeMd;
-      onProgress?.("init", "Generated CLAUDE.md for project context");
+    try {
+      const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
+      if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
+        staticAnalysis.claudeMd = updated.claudeMd;
+        onProgress?.("init", "Generated CLAUDE.md for project context");
+      }
+    } catch (err) {
+      // Non-fatal: continue analysis without CLAUDE.md
+      onProgress?.("init", "Skipped project context (continuing without it)");
     }
   }
 
@@ -178,11 +183,15 @@ export async function analyzeRepositoryIncremental(
     importGraph,
   };
 
-  // Repo init: generate CLAUDE.md if missing
+  // Repo init: generate CLAUDE.md if missing (non-fatal)
   if (!skipInit) {
-    const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
-    if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
-      staticAnalysis.claudeMd = updated.claudeMd;
+    try {
+      const updated = await initializeRepo(repoPath, staticAnalysis, apiKey, model, onAgentMessage, onToolUse);
+      if (updated.claudeMd.length > staticAnalysis.claudeMd.length) {
+        staticAnalysis.claudeMd = updated.claudeMd;
+      }
+    } catch {
+      // Non-fatal: continue without CLAUDE.md
     }
   }
 

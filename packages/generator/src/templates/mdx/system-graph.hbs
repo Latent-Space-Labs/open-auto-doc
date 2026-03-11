@@ -7,7 +7,7 @@ description: Interactive architecture visualization
 
 Explore the system architecture interactively. Drag nodes, zoom in/out, and hover for details.
 
-<ForceGraph graphData={ {{{graphDataJson}}} } />
+<ForceGraph graphData={JSON.parse('{{{graphDataJsonEscaped}}}')} />
 
 ## Legend
 

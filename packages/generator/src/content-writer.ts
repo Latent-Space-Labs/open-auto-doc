@@ -50,6 +50,38 @@ Handlebars.registerHelper("graphDataJson", function (this: { _graphData?: object
   return JSON.stringify(this._graphData || { nodes: [], links: [] });
 });
 
+// Escape JSON for safe embedding inside a JS single-quoted string in MDX
+// Used as: JSON.parse('{{{graphDataJsonEscaped}}}')
+function escapeForJsString(json: string): string {
+  return json.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n");
+}
+
+Handlebars.registerHelper("graphDataJsonEscaped", function (this: { _graphData?: object }) {
+  const json = JSON.stringify(this._graphData || { nodes: [], links: [] });
+  return escapeForJsString(json);
+});
+
+Handlebars.registerHelper("endpointParamsJsonEscaped", (params: Array<{ name: string; type: string; required: boolean; description: string; location: string }>) => {
+  if (!Array.isArray(params) || params.length === 0) return "[]";
+  const cleaned = params.map((p) => ({
+    name: p.name,
+    type: p.type,
+    required: !!p.required,
+    description: p.description || "",
+    location: p.location || "query",
+  }));
+  return escapeForJsString(JSON.stringify(cleaned));
+});
+
+Handlebars.registerHelper("endpointBodyJsonEscaped", (requestBody: string) => {
+  if (!requestBody || typeof requestBody !== "string") return '""';
+  const codeBlockMatch = requestBody.match(/```(?:json)?\s*\n([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    return escapeForJsString(JSON.stringify(codeBlockMatch[1].trim()));
+  }
+  return '""';
+});
+
 Handlebars.registerHelper("endpointBodyJson", (requestBody: string) => {
   if (!requestBody || typeof requestBody !== "string") return '""';
   // Try to extract a JSON code block from the requestBody markdown

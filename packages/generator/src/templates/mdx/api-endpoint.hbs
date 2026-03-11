@@ -42,8 +42,8 @@ description: "API endpoints for {{repoName}}"
   method="{{this.method}}"
   path="{{this.path}}"
   baseUrl=""
-  parameters={ {{{endpointParamsJson this.parameters}}} }
-  defaultBody={ {{{endpointBodyJson this.requestBody}}} }
+  parameters={JSON.parse('{{{endpointParamsJsonEscaped this.parameters}}}')}
+  defaultBody={JSON.parse('{{{endpointBodyJsonEscaped this.requestBody}}}')}
 />
 
 ---

@@ -11,6 +11,7 @@ import {
   saveCache,
   loadCache,
   getHeadSha,
+  validateApiKey,
 } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, ChangelogEntry, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
@@ -61,6 +62,18 @@ export async function generateCommand(options: GenerateOptions) {
   }
 
   p.log.info(`Using ${model}`);
+
+  // Pre-flight: validate API key and credit balance
+  const preflight = p.spinner();
+  preflight.start("Validating API key...");
+  const keyCheck = await validateApiKey(apiKey, model);
+  if (!keyCheck.valid) {
+    preflight.stop("API key validation failed");
+    p.log.error(keyCheck.error || "Invalid API key or insufficient credits.");
+    p.log.info("Check your API key at https://console.anthropic.com/settings/keys");
+    process.exit(1);
+  }
+  preflight.stop("API key validated");
 
   const incremental = options.incremental && !options.force;
   const cacheDir = path.join(config.outputDir, ".autodoc-cache");

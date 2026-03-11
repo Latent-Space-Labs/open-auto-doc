@@ -74,6 +74,7 @@ Do NOT read more than 10-12 files total.`,
     model,
     outputSchema: repoInitSchema,
     maxTurns: 15,
+    timeoutMs: 90_000, // 90s timeout — this step is non-critical
   });
 
   // Write CLAUDE.md to the repo root

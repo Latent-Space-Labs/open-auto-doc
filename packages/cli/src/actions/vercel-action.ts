@@ -115,6 +115,7 @@ interface DeployParams {
 interface DeployToVercelResult {
   projectUrl: string;
   deploymentUrl: string;
+  projectId: string;
 }
 
 /**
@@ -301,12 +302,15 @@ export async function deployToVercel(
     );
     // Still return partial result since the project was created successfully
     const projectUrl = `https://vercel.com/${teamId ? `team/${teamId}` : "dashboard"}/${projectName}`;
-    return { projectUrl, deploymentUrl: dashboardUrl };
+    return { projectUrl, deploymentUrl: dashboardUrl, projectId };
   }
 
   spinner.stop(`Deployed successfully!`);
 
-  // 4. Save vercelUrl to config
+  // 4. Set environment variables for regeneration
+  await setVercelEnvVars(token, projectId, teamId);
+
+  // 5. Save vercelUrl to config
   const projectUrl = `https://vercel.com/${teamId ? `team/${teamId}` : "dashboard"}/${projectName}`;
   try {
     const updatedConfig: AutodocConfig = { ...config, vercelUrl: deploymentUrl };
@@ -315,5 +319,52 @@ export async function deployToVercel(
     // Non-critical
   }
 
-  return { projectUrl, deploymentUrl };
+  return { projectUrl, deploymentUrl, projectId };
+}
+
+/**
+ * Sets environment variables on a Vercel project for the regeneration flow.
+ * Reads GITHUB_TOKEN and DOCS_REPO from the deploy context.
+ */
+async function setVercelEnvVars(
+  token: string,
+  projectId: string,
+  teamId?: string,
+): Promise<void> {
+  const envVars: Array<{ key: string; value: string; type: string; target: string[] }> = [];
+
+  // DOCS_REPO — derived from the GitHub repo that was just created
+  // We read it from the config that was saved during deploy
+  const { loadConfig: loadCfg } = await import("../config.js");
+  const cfg = loadCfg();
+  if (cfg?.docsRepoOwner && cfg?.docsRepoName) {
+    envVars.push({
+      key: "DOCS_REPO",
+      value: `${cfg.docsRepoOwner}/${cfg.docsRepoName}`,
+      type: "encrypted",
+      target: ["production", "preview"],
+    });
+  }
+
+  // GITHUB_TOKEN — use the stored GitHub token
+  const { getGithubToken } = await import("../auth/token-store.js");
+  const ghToken = getGithubToken();
+  if (ghToken) {
+    envVars.push({
+      key: "GITHUB_TOKEN",
+      value: ghToken,
+      type: "encrypted",
+      target: ["production", "preview"],
+    });
+  }
+
+  if (envVars.length === 0) return;
+
+  for (const env of envVars) {
+    await vercelFetch(`/v10/projects/${projectId}/env`, token, {
+      method: "POST",
+      teamId,
+      body: env,
+    });
+  }
 }

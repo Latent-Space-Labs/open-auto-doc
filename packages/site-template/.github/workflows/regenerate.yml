@@ -1,0 +1,58 @@
+# Regenerate Documentation
+#
+# Required secrets:
+#   ANTHROPIC_API_KEY    - Anthropic API key for AI analysis
+#   DOCS_DEPLOY_TOKEN    - GitHub PAT with `repo` scope (needed to clone source repos and push changes)
+#
+# Trigger manually from the Actions tab, or call via repository_dispatch from source repos.
+
+name: Regenerate Documentation
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [regenerate-docs]
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate required secrets
+        run: |
+          missing=""
+          if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then missing="$missing ANTHROPIC_API_KEY"; fi
+          if [ -z "${{ secrets.DOCS_DEPLOY_TOKEN }}" ]; then missing="$missing DOCS_DEPLOY_TOKEN"; fi
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:$missing"
+            echo "DOCS_DEPLOY_TOKEN needs to be a GitHub PAT with 'repo' scope."
+            echo "Create one at https://github.com/settings/tokens"
+            exit 1
+          fi
+
+      - name: Checkout docs repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install open-auto-doc
+        run: npm install -g @latent-space-labs/open-auto-doc
+
+      - name: Regenerate documentation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+        run: open-auto-doc generate --incremental
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "docs: regenerate documentation"
+          git push

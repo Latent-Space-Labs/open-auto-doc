@@ -11,6 +11,8 @@ export interface AutodocConfig {
   outputDir: string;
   projectName?: string;
   docsRepo?: string;
+  docsRepoOwner?: string;
+  docsRepoName?: string;
   vercelUrl?: string;
   ciEnabled?: boolean;
   ciBranch?: string;

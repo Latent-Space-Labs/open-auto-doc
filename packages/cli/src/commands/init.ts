@@ -21,7 +21,7 @@ import { authenticateVercel, deployToVercel } from "../actions/vercel-action.js"
 import { runBuildCheck } from "../actions/build-check.js";
 import { getGitRoot, createCiWorkflow } from "../actions/setup-ci-action.js";
 import { setupMcpConfig } from "./setup-mcp.js";
-import { analyzeRepository, analyzeCrossRepos, saveCache, loadCache, getHeadSha } from "@latent-space-labs/auto-doc-analyzer";
+import { analyzeRepository, analyzeCrossRepos, saveCache, loadCache, getHeadSha, validateApiKey } from "@latent-space-labs/auto-doc-analyzer";
 import type { AnalysisResult, CrossRepoAnalysis } from "@latent-space-labs/auto-doc-analyzer";
 import { scaffoldSite, writeContent, writeMeta } from "@latent-space-labs/auto-doc-generator";
 import type { ContentOptions } from "@latent-space-labs/auto-doc-generator";
@@ -304,6 +304,18 @@ export async function initCommand(options: { output?: string }) {
 
   p.log.step("All configured! Starting analysis and generation...");
 
+  // Pre-flight: validate API key and credit balance before expensive work
+  const preflight = p.spinner();
+  preflight.start("Validating API key...");
+  const keyCheck = await validateApiKey(apiKey, model);
+  if (!keyCheck.valid) {
+    preflight.stop("API key validation failed");
+    p.log.error(keyCheck.error || "Invalid API key or insufficient credits.");
+    p.log.info("Check your API key at https://console.anthropic.com/settings/keys");
+    process.exit(1);
+  }
+  preflight.stop("API key validated");
+
   const outputDir = path.resolve(options.output || "docs-site");
   const cacheDir = path.join(outputDir, ".autodoc-cache");
 
@@ -416,7 +428,8 @@ export async function initCommand(options: { output?: string }) {
   // Scaffold site
   try {
     genSpinner.start("Scaffolding documentation site...");
-    await scaffoldSite(outputDir, projectName, templateDir);
+    const cliVersion = getCliVersion();
+    await scaffoldSite(outputDir, projectName, templateDir, cliVersion);
     genSpinner.stop("Site scaffolded");
   } catch (err) {
     genSpinner.stop("Scaffold failed");
@@ -650,6 +663,23 @@ async function findFreePort(startPort: number): Promise<number> {
     port++;
   }
   return port;
+}
+
+function getCliVersion(): string {
+  try {
+    const pkgPath = path.resolve(__dirname, "../package.json");
+    if (fs.existsSync(pkgPath)) {
+      return JSON.parse(fs.readFileSync(pkgPath, "utf-8")).version;
+    }
+    // Fallback: monorepo dev path
+    const monoPkgPath = path.resolve(__dirname, "../../package.json");
+    if (fs.existsSync(monoPkgPath)) {
+      return JSON.parse(fs.readFileSync(monoPkgPath, "utf-8")).version;
+    }
+  } catch {
+    // ignore
+  }
+  return "0.0.0";
 }
 
 function killDevServer(child: ChildProcess) {

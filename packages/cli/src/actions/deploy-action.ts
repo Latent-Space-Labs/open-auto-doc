@@ -183,6 +183,8 @@ export async function createAndPushDocsRepo(params: {
   // Save docsRepo to config
   const updatedConfig: AutodocConfig = { ...config };
   updatedConfig.docsRepo = repoUrl;
+  updatedConfig.docsRepoOwner = owner;
+  updatedConfig.docsRepoName = repoName as string;
   saveConfig(updatedConfig);
 
   return { repoUrl, owner, repoName: repoName as string };
