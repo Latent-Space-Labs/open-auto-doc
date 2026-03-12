@@ -1,6 +1,6 @@
 {
   "name": "@latent-space-labs/open-auto-doc",
-  "version": "0.5.10",
+  "version": "0.5.11",
   "description": "Auto-generate beautiful documentation websites from GitHub repositories using AI",
   "type": "module",
   "bin": {
