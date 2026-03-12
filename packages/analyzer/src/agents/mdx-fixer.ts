@@ -33,10 +33,12 @@ You will receive Next.js / Fumadocs build error output. Your job is to find and 
 6. **HTML comments** — \`<!-- -->\` is not valid in MDX; remove or convert to JSX comments \`{/* */}\`.
 7. **Unescaped pipes in tables** — Pipes inside table cells that break table parsing.
 8. **Import/export statements** — Invalid or unnecessary import/export statements in MDX files.
+9. **TypeScript type errors in components** — Type mismatches in \`.tsx\`/\`.ts\` files (e.g. \`RefObject\` vs \`MutableRefObject\`, \`null\` vs \`undefined\`, missing type arguments). Fix the types directly.
 
 ## Rules
 
-- ONLY edit files inside \`content/docs/\`. Never touch other project files.
+- You may edit files inside \`content/docs/\` (MDX files) AND \`components/\` or \`app/\` (TypeScript/React files).
+- For TypeScript errors in \`.tsx\`/\`.ts\` files, fix the type issues directly (e.g. ref type mismatches, missing imports, incorrect generics).
 - Read the error output carefully to identify the exact file(s) and line(s).
 - Use Read to examine the broken file, then Edit to fix it.
 - After fixing, set \`fixed: true\` and list all changed file paths in \`filesChanged\`.
@@ -62,7 +64,7 @@ ${buildErrors}
 \`\`\`
 
 Read the failing files, identify the issues, and use Edit to fix them.
-Only edit files inside content/docs/.`,
+You may edit files in content/docs/, components/, and app/.`,
     cwd: docsDir,
     apiKey,
     model,

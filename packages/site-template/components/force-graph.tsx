@@ -81,7 +81,7 @@ const LINK_TYPE_COLORS: Record<string, { color: string; label: string }> = {
 export function ForceGraph({ graphData, height = 500 }: ForceGraphProps) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<{ centerAt: (x: number, y: number, ms: number) => void; zoom: (k: number, ms: number) => void } | null>(null);
+  const fgRef = useRef<{ centerAt: (x: number, y: number, ms: number) => void; zoom: (k: number, ms: number) => void } | undefined>(undefined);
   const [dimensions, setDimensions] = useState({ width: 800, height });
   const [hoverNode, setHoverNode] = useState<GraphNode | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
