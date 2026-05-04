@@ -7,6 +7,7 @@ import { loginCommand } from "./commands/login.js";
 import { logoutCommand } from "./commands/logout.js";
 import { setupMcpCommand } from "./commands/setup-mcp.js";
 import { scaffoldCommand } from "./commands/scaffold.js";
+import { generateFromJsonCommand } from "./commands/generate-from-json.js";
 
 const program = new Command();
 
@@ -62,5 +63,12 @@ program
   .option("-n, --name <name>", "Project name (defaults to repo dir name)")
   .option("-p, --repo-path <path>", "Repo path to document (defaults to cwd)", ".")
   .action(scaffoldCommand);
+
+program
+  .command("generate-from-json")
+  .description("Read .autodoc-cache/*.json → run generator → write MDX. Used by the open-auto-doc skill.")
+  .option("-c, --cache-dir <path>", "Cache directory (defaults to <outputDir>/.autodoc-cache)")
+  .option("-o, --output-dir <path>", "Output directory (defaults to .autodocrc.json outputDir)")
+  .action(generateFromJsonCommand);
 
 program.parse();
