@@ -1,0 +1,13 @@
+{
+  "name": "open-auto-doc",
+  "version": "0.1.0",
+  "description": "AI-powered documentation generator that runs on your Claude subscription. Generates Fumadocs sites from any repo and integrates with Cowork for scheduled re-runs.",
+  "author": {
+    "name": "Latent Space Labs",
+    "url": "https://github.com/Latent-Space-Labs"
+  },
+  "homepage": "https://github.com/Latent-Space-Labs/open-auto-doc",
+  "repository": "https://github.com/Latent-Space-Labs/open-auto-doc",
+  "license": "MIT",
+  "keywords": ["documentation", "fumadocs", "claude-code", "cowork"]
+}
