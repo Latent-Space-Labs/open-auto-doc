@@ -24,6 +24,7 @@ Trigger this skill when the user:
 Skip this skill when:
 - The user explicitly wants the BYOK CLI flow (`open-auto-doc init` with API key)
 - The user is asking conceptual questions about how documentation generators work
+- The user is asking a read-only question about the codebase (e.g., "explain the architecture", "what does this do") with no request to generate or write files
 
 ## Modes
 
@@ -48,10 +49,10 @@ If the user (or invoking prompt) includes the word "unattended" or "scheduled" i
 
 ## Step 1: Detect state
 
-Use Read to check for `.autodocrc.json` in cwd and in `docs-site/.autodocrc.json`.
+Use Read to check for `.autodocrc.json` — first in cwd, then in `docs-site/.autodocrc.json` as a fallback. The scaffold command always writes to cwd, so this should be the common case.
 
-- If found: parse it. Note the `outputDir`, `repos[0].name`, and compute `<cacheDir> = <outputDir>/.autodoc-cache`. Proceed to Step 3 (skip first-run scaffold).
-- If not found: proceed to Step 2.
+- If found at either path: parse it. Note the `outputDir`, `repos[0].name`, and compute `<cacheDir> = <outputDir>/.autodoc-cache`. Proceed to Step 3 (skip first-run scaffold).
+- If not found at either path: proceed to Step 2.
 
 Use Bash `pwd` to capture the absolute cwd. Save it as `<repoPath>` for later steps. Save `<repoName>` from `repos[0].name` (re-run path) or wait for the scaffold output (first-run path).
 
@@ -67,7 +68,7 @@ npx @latent-space-labs/open-auto-doc scaffold -o docs-site
 
 The command outputs a single JSON line on success: `{"ok":true,"outputDir":"...","cacheDir":"...","repoName":"..."}`. Parse it to capture `<outputDir>`, `<cacheDir>`, and `<repoName>`.
 
-If the command fails, surface the error to the user and stop.
+If the command fails: in interactive mode, surface the error to the user and stop. In unattended mode, exit non-zero with the error message so Cowork records the failure.
 
 ## Step 3: Wave 1 — architect subagent (required)
 
@@ -123,7 +124,15 @@ For each result:
 - Parse the first JSON code block.
 - If parsing fails OR the subagent returned an error: log a warning, set that field to `null` (for nullable fields: features, configuration, businessLogic, errorHandling) or `[]` (for array fields: apiEndpoints, components, dataModels). Continue.
 
-Save the parsed results as `<wave2Results>`.
+Save the parsed results as `<wave2Results>`, keyed by section name so Step 6 can dot-access them:
+
+- `wave2Results.apiEndpoints` ← result from `agents/api-doc.md`
+- `wave2Results.components` ← result from `agents/component-doc.md`
+- `wave2Results.dataModels` ← result from `agents/model-doc.md`
+- `wave2Results.businessLogic` ← result from `agents/business-logic.md`
+- `wave2Results.features` ← result from `agents/features.md`
+- `wave2Results.errorHandling` ← result from `agents/error-doc.md`
+- `wave2Results.configuration` ← result from `agents/config-doc.md`
 
 ## Step 5: Wave 3 — guide-writer subagent
 
@@ -227,7 +236,9 @@ In interactive mode, ask:
 - After regen, what should happen? `none` (default) / `commit` / `push`
   - Only offer `push` if `<outputDir>/.git/config` exists with a remote (i.e., `git -C <outputDir> remote -v` returns non-empty).
 
-Update `.autodocrc.json` to set `routineAction` to the user's choice. Use Read + Edit on the JSON file.
+Update `.autodocrc.json` to set `routineAction` to the user's choice:
+- If the key already exists in the file, use Edit to replace its value.
+- If the key is absent (older config), use Read to load the file, add the key with the chosen value, and use Write to overwrite the file.
 
 Then invoke the schedule skill via the Skill tool:
 
@@ -252,7 +263,7 @@ When invoked in unattended mode (e.g., from a Cowork routine):
 1. Skip Step 8 (no end-of-run menu)
 2. Read `routineAction` from `.autodocrc.json`. After Step 7 succeeds:
    - `none`: do nothing further, exit success
-   - `commit`: run `git -C <repoPath> add docs-site/ && git -C <repoPath> commit -m "docs: auto-update via open-auto-doc"`. If the commit fails because nothing changed, that's also success.
+   - `commit`: run `git -C <repoPath> add <outputDir> && git -C <repoPath> commit -m "docs: auto-update via open-auto-doc"`. If the commit fails because nothing changed, that's also success.
    - `push`: same as commit, then run `git -C <outputDir> add . && git -C <outputDir> commit -m "docs: auto-update" && git -C <outputDir> push`. If the docs-site has no git config, fail with a clear message.
 3. Exit with structured success/failure message — Cowork picks it up.
 
@@ -261,6 +272,6 @@ If anything is ambiguous (config malformed, routineAction missing, etc.), fail w
 ## Helpful patterns
 
 - **Loading prompt files**: `agents/<name>.md` paths are relative to this skill's base directory. The runtime tells you the base directory at skill activation time. Resolve relative paths against it.
-- **Parsing subagent JSON**: subagents return their result inside a fenced ```json ... ``` block. Extract the FIRST such block. If the subagent returned malformed JSON, log it and treat as a failure for that section.
+- **Parsing subagent JSON**: subagents return their result inside a fenced ```json ... ``` block. Extract the FIRST such block. If the subagent returned malformed JSON, log it and treat as a failure for that section. In unattended mode, accumulate warnings in a `sectionWarnings[]` array (e.g., `{section: "apiEndpoints", error: "..."}`) and include them in the final structured success/failure message so Cowork operators can diagnose missing sections.
 - **Throttling**: dispatch Wave 2 in two batches by default — 4 + 3, not 7-at-once. If even those batches hit rate limits, fail loud — don't retry indefinitely.
 - **Logging**: after each wave, briefly tell the interactive user what found ("Found 12 endpoints, 4 components"). Skip in unattended mode.
