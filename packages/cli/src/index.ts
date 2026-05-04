@@ -6,6 +6,7 @@ import { setupCiCommand } from "./commands/setup-ci.js";
 import { loginCommand } from "./commands/login.js";
 import { logoutCommand } from "./commands/logout.js";
 import { setupMcpCommand } from "./commands/setup-mcp.js";
+import { scaffoldCommand } from "./commands/scaffold.js";
 
 const program = new Command();
 
@@ -53,5 +54,13 @@ program
   .command("logout")
   .description("Clear stored credentials")
   .action(logoutCommand);
+
+program
+  .command("scaffold")
+  .description("Non-interactive scaffold + .autodocrc.json. Used by the open-auto-doc skill.")
+  .option("-o, --output <dir>", "Output directory", "docs-site")
+  .option("-n, --name <name>", "Project name (defaults to repo dir name)")
+  .option("-p, --repo-path <path>", "Repo path to document (defaults to cwd)", ".")
+  .action(scaffoldCommand);
 
 program.parse();
