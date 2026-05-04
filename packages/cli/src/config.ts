@@ -4,9 +4,10 @@ import path from "node:path";
 export interface AutodocConfig {
   repos: Array<{
     name: string;
-    fullName: string;
-    cloneUrl: string;
-    htmlUrl: string;
+    fullName?: string;     // optional: skill-mode local repos may not have a GitHub fullname
+    cloneUrl?: string;     // optional: skill-mode local repos may not have a remote
+    htmlUrl?: string;      // optional: skill-mode local repos may not have a remote
+    path?: string;         // new: absolute or relative local path (skill mode uses ".")
   }>;
   outputDir: string;
   projectName?: string;
@@ -16,6 +17,7 @@ export interface AutodocConfig {
   vercelUrl?: string;
   ciEnabled?: boolean;
   ciBranch?: string;
+  routineAction?: "none" | "commit" | "push";  // new: Cowork routine post-regen behavior
 }
 
 export function loadConfig(): AutodocConfig | null {
