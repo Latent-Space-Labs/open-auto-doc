@@ -192,7 +192,7 @@ keep this file in sync if those change.
       "name": "string",
       "description": "string",
       "steps": ["string"],
-      "diagram": { "id": "string", "title": "string", "description": "string", "mermaidSyntax": "string" }
+      "diagram": { "id": "string", "title": "string", "description": "string", "mermaidSyntax": "string" }  // optional — omit if no meaningful diagram applies
     }
   ],
   "keyInvariants": ["string"]

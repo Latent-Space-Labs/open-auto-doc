@@ -46,7 +46,7 @@ Return your result as a SINGLE fenced JSON code block. No prose before or after:
 
 ````
 ```json
-{ "tagline": "...", "features": [...] }
+{ "tagline": "...", "targetAudience": "...", "features": [...], "useCases": [...] }
 ```
 ````
 

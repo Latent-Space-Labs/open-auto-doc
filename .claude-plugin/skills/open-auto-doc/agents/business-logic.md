@@ -35,7 +35,7 @@ Capture the *invariants* — things that must always be true.
       "name": "Checkout",
       "description": "User completes a purchase",
       "steps": ["Add items to cart", "Enter shipping", "Submit payment", "Receive confirmation"],
-      "diagram": { "id": "checkout-flow", "title": "Checkout flow", "description": "...", "mermaidSyntax": "flowchart LR\n  A[Cart] --> B[Shipping] --> C[Payment] --> D[Confirmation]" }
+      "diagram": { "id": "checkout-flow", "title": "Checkout flow", "description": "...", "mermaidSyntax": "flowchart LR\n  A[Cart] --> B[Shipping] --> C[Payment] --> D[Confirmation]" }  // optional — omit if no meaningful diagram applies
     }
   ],
   "keyInvariants": ["Inventory count never goes negative"]

@@ -28,7 +28,7 @@ required, what it controls.
       "name": "DATABASE_URL",
       "source": ".env (env var)",
       "type": "string",
-      "defaultValue": null,
+      "defaultValue": "none",
       "required": true,
       "description": "Postgres connection string",
       "category": "Database"
