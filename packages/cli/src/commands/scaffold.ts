@@ -20,41 +20,54 @@ export async function scaffoldCommand(options: ScaffoldOptions) {
   const projectName = options.name || path.basename(repoPath);
 
   if (!fs.existsSync(repoPath)) {
-    console.error(`Repo path does not exist: ${repoPath}`);
+    console.log(JSON.stringify({ ok: false, error: `Repo path does not exist: ${repoPath}` }));
     process.exit(1);
   }
 
   const templateDir = resolveTemplateDir();
   if (!fs.existsSync(path.join(templateDir, "package.json"))) {
-    console.error(`Site template not found at: ${templateDir}`);
+    console.log(JSON.stringify({ ok: false, error: `Site template not found at: ${templateDir}` }));
     process.exit(1);
   }
 
   const remote = detectGitRemote(repoPath);
 
-  const cliVersion = getCliVersion();
-  await scaffoldSite(outputDir, projectName, templateDir, cliVersion);
+  try {
+    const alreadyExisted = fs.existsSync(path.join(outputDir, "package.json"));
 
-  const config: AutodocConfig = {
-    repos: [{
-      name: path.basename(repoPath),
-      ...(remote?.fullName && { fullName: remote.fullName }),
-      ...(remote?.cloneUrl && { cloneUrl: remote.cloneUrl }),
-      ...(remote?.htmlUrl && { htmlUrl: remote.htmlUrl }),
-      path: repoPath,
-    }],
-    outputDir,
-    projectName,
-    routineAction: "none",
-  };
-  saveConfig(config);
+    const cliVersion = getCliVersion();
+    if (!alreadyExisted) {
+      await scaffoldSite(outputDir, projectName, templateDir, cliVersion);
+    }
 
-  console.log(JSON.stringify({
-    ok: true,
-    outputDir,
-    cacheDir: path.join(outputDir, ".autodoc-cache"),
-    repoName: path.basename(repoPath),
-  }));
+    const config: AutodocConfig = {
+      repos: [{
+        name: path.basename(repoPath),
+        ...(remote?.fullName && { fullName: remote.fullName }),
+        ...(remote?.cloneUrl && { cloneUrl: remote.cloneUrl }),
+        ...(remote?.htmlUrl && { htmlUrl: remote.htmlUrl }),
+        path: repoPath,
+      }],
+      outputDir,
+      projectName,
+      routineAction: "none",
+    };
+    saveConfig(config);
+
+    console.log(JSON.stringify({
+      ok: true,
+      outputDir,
+      cacheDir: path.join(outputDir, ".autodoc-cache"),
+      repoName: path.basename(repoPath),
+      alreadyExisted,
+    }));
+  } catch (err) {
+    console.log(JSON.stringify({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+    process.exit(1);
+  }
 }
 
 function detectGitRemote(repoPath: string): { fullName?: string; cloneUrl?: string; htmlUrl?: string } | null {
