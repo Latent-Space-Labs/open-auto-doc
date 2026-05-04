@@ -31,18 +31,27 @@ export async function generateFromJsonCommand(options: GenerateFromJsonOptions) 
     }
 
     const results: AnalysisResult[] = [];
+    const warnings: string[] = [];
     for (const file of cacheFiles) {
       try {
         const raw = JSON.parse(fs.readFileSync(path.join(cacheDir, file), "utf-8"));
+        if (!raw || typeof raw !== "object") {
+          warnings.push(`${file}: not a JSON object`);
+          continue;
+        }
         const result: AnalysisResult = raw.result ?? raw;
+        if (typeof result !== "object" || typeof result.repoName !== "string") {
+          warnings.push(`${file}: missing repoName, not a valid AnalysisResult`);
+          continue;
+        }
         results.push(result);
       } catch (err) {
-        throw new Error(`Failed to parse ${file}: ${err instanceof Error ? err.message : String(err)}`);
+        warnings.push(`Failed to parse ${file}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
     if (results.length === 0) {
-      throw new Error("No valid analysis results loaded.");
+      throw new Error(`No valid analysis results loaded.${warnings.length ? " Warnings:\n" + warnings.join("\n") : ""}`);
     }
 
     const contentDir = path.join(outputDir, "content", "docs");
@@ -53,6 +62,7 @@ export async function generateFromJsonCommand(options: GenerateFromJsonOptions) 
       ok: true,
       outputDir,
       repos: results.map((r) => r.repoName),
+      ...(warnings.length > 0 && { warnings }),
     }));
   } catch (err) {
     console.log(JSON.stringify({
