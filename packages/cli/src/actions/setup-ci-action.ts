@@ -266,6 +266,10 @@ async function createCiWorkflowsMultiRepo(params: {
   const workflowPath = ".github/workflows/update-docs.yml";
 
   for (const repo of config.repos) {
+    if (!repo.fullName) {
+      throw new Error(`Repo "${repo.name}" is missing fullName — setup-ci requires GitHub repos.`);
+    }
+
     const spinner = p.spinner();
     spinner.start(`Pushing workflow to ${repo.fullName}...`);
 

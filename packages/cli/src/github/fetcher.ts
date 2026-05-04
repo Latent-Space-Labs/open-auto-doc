@@ -19,6 +19,11 @@ export function cloneRepo(
   options: CloneOptions = {},
 ): ClonedRepo {
   const { shallow = true } = options;
+
+  if (!repo.cloneUrl) {
+    throw new Error(`Repo "${repo.name}" has no cloneUrl — cannot clone.`);
+  }
+
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "open-auto-doc-"));
   const repoDir = path.join(tmpDir, repo.name);
 

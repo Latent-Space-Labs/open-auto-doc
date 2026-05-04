@@ -104,6 +104,13 @@ export async function generateCommand(options: GenerateOptions) {
     }
   }
 
+  // Validate that all repos to analyze have the GitHub fields required for cloning
+  for (const repo of reposToAnalyze) {
+    if (!repo.cloneUrl || !repo.htmlUrl) {
+      throw new Error(`Repo "${repo.name}" is missing GitHub fields (cloneUrl/htmlUrl) — generate requires GitHub repos. Use the open-auto-doc skill for local repos.`);
+    }
+  }
+
   // Phase 1: Clone repos to analyze
   const cloneSpinner = p.spinner();
   cloneSpinner.start(`Cloning ${reposToAnalyze.length} ${reposToAnalyze.length === 1 ? "repository" : "repositories"}...`);
