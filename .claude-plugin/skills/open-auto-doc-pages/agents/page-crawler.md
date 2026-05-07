@@ -106,11 +106,12 @@ while (queue.length > 0):
 6. Filter clickables in subagent code:
    - **Anchors:** keep if `new URL(href).origin === baseUrlOrigin` AND not in `excludeUrls` AND `!destructiveRe.test(text)` (unless `allowDestructive.includes(text)`).
    - **Buttons:** keep if `!destructiveRe.test(text)` (unless allowed). The form-submit + `closest('form')` filter already happened in step 5.
+   - When an anchor or button is filtered specifically because of `destructiveRe.test(text)` (and not because of any other filter), increment `stats.destructiveBlocked`. Don't double-count anchors that are also filtered for being external or in `excludeUrls`.
 7. Build `outgoing`: for each kept anchor, add `{ url: anchor.href, label: anchor.text }`. (Anchors don't need clicking — `href` tells us where they go.) Add edges to the global `edges` array as you go.
 8. For each kept button, click and check for navigation:
    - Read `location.href` (via `javascript_tool`) before click.
    - `computer({ action: "left_click", ..., tabId })` on the button (use `find` to get coordinates from the button's text).
-   - Poll `location.href` 4× at 500ms intervals. If it changed, record edge + outgoing entry, then `navigate` back to the page being crawled. If unchanged, drop the button (non-navigational).
+   - Poll `location.href` 8× at 500ms intervals (4s window — covers slow client-side navigation). If it changed, record edge + outgoing entry, then `navigate` back to the page being crawled. If unchanged, drop the button (non-navigational).
    - Cap total per-page button-click time at `perPageTimeoutMs / 2` to avoid runaway pages.
 9. Return:
    ```
@@ -163,3 +164,12 @@ Return your output as a single fenced JSON code block matching the schema in `sc
 - **No pages visited at all** (e.g., `baseUrl` returned 404, login redirect on first hit): return the schema with empty `pages` and `edges`, populated `stats.errors`, and a top-level `warnings` array describing what happened. The orchestrator will surface this to the user; the run is not considered fatal at the subagent level.
 - **Per-page errors** (timeout, navigation failure): push to `stats.errors` and continue. Don't block the rest of the crawl on one bad page.
 - **Tool-loading failure** (ToolSearch returns nothing): return a JSON object with `pages: []`, `warnings: ["chrome-mcp-unavailable"]`, and `stats.errors: ["could not load Chrome MCP tools"]`.
+
+## Known limitations (v1)
+
+These are documented constraints rather than failure modes — the crawler will silently miss them and produce an incomplete (but valid) manifest. Surface them in the run report so the user understands the scope.
+
+- **Cross-origin iframes and Shadow DOM** are not traversed by `querySelectorAll`. Pages and clickables inside them won't be discovered.
+- **Slow client-side navigation** (>4s after a button click) is treated as non-navigational. The 4s polling window is a tradeoff between coverage and total crawl time.
+- **Icon-only buttons** without `innerText`, `aria-label`, or `title` get filtered at the DOM-extraction step (their `text` is empty). They won't be clicked, so any pages reachable only via icon buttons will be missed.
+- **Hash-fragment navigation** (`#section1` vs `#section2` on the same path) is collapsed to one page when `dropQueryParams=true` (the default). Single-page apps that use fragments for routing should set `dropQueryParams=false`.
