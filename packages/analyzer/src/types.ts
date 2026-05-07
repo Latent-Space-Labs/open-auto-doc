@@ -228,6 +228,42 @@ export interface ChangelogEntry {
   summary: string;
 }
 
+// Page Flow (UI crawl)
+export interface PageRecord {
+  slug: string;
+  url: string;
+  title: string;
+  screenshot: string;          // relative to <outputDir>/public, e.g. "page-flow/home.png"
+  hadModal: boolean;
+  clickTargets: PageClickTarget[];
+}
+
+export interface PageClickTarget {
+  label: string;
+  to: string;                  // slug of the destination page
+}
+
+export interface PageEdge {
+  from: string;                // source slug
+  to: string;                  // destination slug
+  label: string;               // anchor text or button label
+}
+
+export interface PageFlowStats {
+  pagesVisited: number;
+  pagesSkipped: number;
+  destructiveBlocked: number;
+  errors: string[];
+}
+
+export interface PageFlow {
+  pages: PageRecord[];
+  edges: PageEdge[];
+  mermaid: string;             // mermaid graph syntax (no fences)
+  stats: PageFlowStats;
+  warnings: string[];
+}
+
 export interface GettingStartedGuide {
   prerequisites: string[];
   installation: string;
@@ -250,6 +286,7 @@ export interface AnalysisResult {
   configuration: ConfigurationAnalysis | null;
   businessLogic: BusinessLogicAnalysis | null;
   errorHandling: ErrorHandlingAnalysis | null;
+  pageFlow?: PageFlow | null;
 }
 
 export interface ApiContract {
