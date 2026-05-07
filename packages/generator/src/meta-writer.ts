@@ -46,6 +46,7 @@ async function writeRepoMeta(dir: string, result: AnalysisResult, changelog?: Ch
   if (result.configuration && result.configuration.configItems.length > 0) pages.push("configuration");
   if (result.businessLogic && (result.businessLogic.domainConcepts.length > 0 || result.businessLogic.businessRules.length > 0 || result.businessLogic.workflows.length > 0)) pages.push("business-logic");
   pages.push("architecture");
+  if (result.pageFlow && result.pageFlow.pages.length > 0) pages.push("pages");
   if (result.apiEndpoints.length > 0) pages.push("api");
   if (result.components.length > 0) pages.push("components");
   if (result.dataModels.length > 0) pages.push("data-models");
