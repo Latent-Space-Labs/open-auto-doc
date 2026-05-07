@@ -120,7 +120,7 @@ function loadTemplates() {
     );
   }
 
-  const templateFiles = ["overview", "features", "getting-started", "architecture", "api-endpoint", "component", "data-model", "diagrams", "cross-repo", "configuration", "business-logic", "error-handling", "changelog", "system-graph"];
+  const templateFiles = ["overview", "features", "getting-started", "architecture", "pages", "api-endpoint", "component", "data-model", "diagrams", "cross-repo", "configuration", "business-logic", "error-handling", "changelog", "system-graph"];
   for (const name of templateFiles) {
     const filePath = path.join(templateDir, `${name}.hbs`);
     if (fs.existsSync(filePath)) {
@@ -273,6 +273,18 @@ async function writeRepoContent(dir: string, result: AnalysisResult, changelog?:
     await fs.writeFile(
       path.join(dir, "architecture.mdx"),
       renderTemplate("architecture", safeResult),
+    );
+  }
+
+  // Pages (UI crawl: navigation graph + screenshot gallery)
+  if (
+    safeResult.pageFlow &&
+    safeResult.pageFlow.pages.length > 0 &&
+    templates["pages"]
+  ) {
+    await fs.writeFile(
+      path.join(dir, "pages.mdx"),
+      renderTemplate("pages", { ...safeResult, ...safeResult.pageFlow }),
     );
   }
 
