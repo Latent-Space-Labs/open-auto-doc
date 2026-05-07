@@ -255,17 +255,19 @@ export interface PageEdge { from: string; to: string; label: string; }
 
 ### 8.2 Template — `packages/generator/src/templates/mdx/pages.hbs`
 
+The site-template ships a remark plugin (`packages/site-template/lib/remark-mermaid.ts`) that transforms ```` ```mermaid ```` fenced blocks into `<Mermaid code={...} />` JSX. Use the fenced-block convention (matches existing `business-logic.hbs`) — no import needed.
+
 ```mdx
 ---
 title: Pages
 description: Visual map of every page in the app
 ---
 
-import { Mermaid } from 'fumadocs-ui/components/mdx/mermaid';
-
 ## Navigation map
 
-<Mermaid chart={`{{{mermaid}}}`} />
+```mermaid
+{{{mermaid}}}
+```
 
 ## All pages ({{pages.length}})
 
