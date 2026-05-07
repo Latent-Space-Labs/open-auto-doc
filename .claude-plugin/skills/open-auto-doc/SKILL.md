@@ -206,6 +206,26 @@ Parse the JSON output: `{"ok":true,"outputDir":"...","repos":["..."]}`.
 
 If it fails, surface the error to the user (interactive) or exit non-zero with the error (unattended). For v1, do not attempt to auto-fix MDX errors — the existing `mdx-fixer` agent in `packages/analyzer/src/agents/mdx-fixer.ts` is BYOK-only; porting that recovery loop into the skill is a follow-up.
 
+## Step 7.5: Optional page crawl
+
+**Skip this step entirely in unattended mode** — the main flow's `routineAction` doesn't include page crawling, and the crawl needs human-in-the-loop login.
+
+In interactive mode, after Step 7's MDX render succeeds, ask:
+
+> "Want to also crawl the running app and capture screenshots of every page? (y/n)
+> This opens a Chrome tab, asks you to log in, then walks through the app and saves a screenshot of each page into the docs."
+
+If the user answers `y`/`yes`: invoke the sibling skill via the Skill tool:
+
+```
+skill: open-auto-doc-pages
+args: (none)
+```
+
+Wait for it to complete and surface its summary. Then continue to Step 8.
+
+If the user answers `n`/`no` (or anything else): proceed directly to Step 8.
+
 ## Step 8: End-of-run menu
 
 **Skip this step entirely in unattended mode** — proceed to Step 9 if `routineAction` is set, otherwise just announce success.
