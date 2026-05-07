@@ -1,0 +1,36 @@
+---
+title: Pages
+description: Visual map of every page in the app
+---
+
+## Navigation map
+
+```mermaid
+{{{mermaid}}}
+```
+
+## All pages ({{pages.length}})
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+{{#each pages}}
+  <div className="border rounded-lg overflow-hidden bg-fd-card">
+    <img src="/{{screenshot}}" alt="{{title}}" className="w-full border-b" />
+    <div className="p-4">
+      <h3 className="font-semibold mb-1">{{title}}</h3>
+      <code className="text-xs text-fd-muted-foreground">{{url}}</code>
+      {{#if clickTargets.length}}
+      <p className="text-sm mt-3 mb-1">Navigates to:</p>
+      <ul className="text-sm">
+        {{#each clickTargets}}
+        <li>→ <code>{{to}}</code> <span className="text-fd-muted-foreground">({{label}})</span></li>
+        {{/each}}
+      </ul>
+      {{/if}}
+    </div>
+  </div>
+{{/each}}
+</div>
+
+{{#if warnings.length}}
+> **Crawl warnings:** {{join warnings ", "}}
+{{/if}}
