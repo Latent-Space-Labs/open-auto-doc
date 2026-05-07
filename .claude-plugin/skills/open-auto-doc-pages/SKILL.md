@@ -141,7 +141,7 @@ Then:
 
    > "I've opened your app at `<URL>` in a Chrome tab. Please log in there, then say **ready** to start the crawl. Or say **public-only** to skip login and crawl what's reachable without auth."
 
-6. Wait for user input. Accept `ready`, `public-only`, or `cancel`. On `cancel`, jump to Step 8 (cleanup) and stop.
+6. Wait for user input. Accept `ready`, `public-only`, or `cancel`. Track the user's choice as `<skipLogin>` (true if they said `public-only` OR if `<publicOnly>` is already true from config; false if they said `ready`). On `cancel`, jump to Step 8 (cleanup) and stop.
 
 ## Step 6: Dispatch page-crawler subagent
 
@@ -166,7 +166,7 @@ Dispatch ONE subagent via the Agent tool:
        "baseUrl": "<baseUrl>",
        "screenshotDir": "<outputDir>/public/page-flow",
        "screenshotRel": "page-flow/",
-       "loginUrl": "<loginUrl or empty if publicOnly>",
+       "loginUrl": "<empty string if <skipLogin> is true; otherwise <loginUrl> from config>",
        "maxPages": <maxPages>, "maxDepth": <maxDepth>,
        "perPageTimeoutMs": <perPageTimeoutMs>, "totalTimeoutMs": <totalTimeoutMs>,
        "dropQueryParams": <dropQueryParams>,
@@ -206,6 +206,14 @@ If this step fails (process already gone, etc.), log a warning but continue.
 Run: `npx @latent-space-labs/open-auto-doc generate-from-json`
 
 Parse the JSON output `{"ok":true,"outputDir":"...","repos":["..."]}`. If it fails, surface the error.
+
+After the command succeeds, verify the page-flow MDX was actually written:
+
+```
+Bash({ command: `test -f ${<outputDir>}/content/docs/pages.mdx && echo OK || echo MISSING`, description: "Verify pages.mdx" })
+```
+
+If the result is `MISSING` (e.g., because the merged manifest had `pages: []`), surface a warning to the user — the summary in Step 10 should NOT claim a path that doesn't exist. Adjust Step 10's `Output:` line to read `Output: (no pages.mdx — crawler returned empty manifest)` in that case.
 
 ## Step 10: Print summary
 
