@@ -13,9 +13,9 @@ description: Visual map of every page in the app
 
 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
 {{#each pages}}
-  <div className="border rounded-lg overflow-hidden bg-fd-card">
+  <article className="border rounded-lg overflow-hidden bg-fd-card">
     <img src="/{{screenshot}}" alt="{{title}}" className="w-full border-b" />
-    <div className="p-4">
+    <section className="p-4">
       <h3 className="font-semibold mb-1">{{title}}</h3>
       <code className="text-xs text-fd-muted-foreground">{{url}}</code>
       {{#if clickTargets.length}}
@@ -26,8 +26,8 @@ description: Visual map of every page in the app
         {{/each}}
       </ul>
       {{/if}}
-    </div>
-  </div>
+    </section>
+  </article>
 {{/each}}
 </div>
 
