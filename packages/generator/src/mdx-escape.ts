@@ -84,9 +84,11 @@ export function escapeMdxOutsideCode(mdx: string): string {
       continue;
     }
 
-    // --- JSX component tag: <Uppercase... /> or <Uppercase>...</Uppercase> ---
-    // Skip escaping inside JSX component tags (element name starts with uppercase)
-    if (mdx[i] === "<" && i + 1 < len && /[A-Z]/.test(mdx[i + 1])) {
+    // --- JSX component or HTML tag: <Tag... /> or <Tag>...</Tag> ---
+    // Skip escaping inside the element (uppercase JSX components AND lowercase HTML tags).
+    // Stray `<` followed by whitespace, punctuation, or digits still falls through to the
+    // catch-all branch below and gets escaped, so this remains safe for AI-generated prose.
+    if (mdx[i] === "<" && i + 1 < len && /[A-Za-z]/.test(mdx[i + 1])) {
       // Find the end of this JSX element (self-closing /> or opening > then </Name>)
       const jsxStart = i;
       // Extract component name
@@ -115,7 +117,7 @@ export function escapeMdxOutsideCode(mdx: string): string {
             break;
           }
           j++;
-        } else if (mdx[j] === "<" && j !== jsxStart && j + 1 < len && /[A-Z]/.test(mdx[j + 1])) {
+        } else if (mdx[j] === "<" && j !== jsxStart && j + 1 < len && /[A-Za-z]/.test(mdx[j + 1])) {
           // Nested JSX component — track depth
           depth++;
           j++;
